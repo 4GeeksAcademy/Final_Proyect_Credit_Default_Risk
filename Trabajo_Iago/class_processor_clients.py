@@ -34,7 +34,7 @@ def create_database_from_dataframes(
     """
 
     print("=" * 60)
-    print("📚 CREANDO BASE DE DATOS")
+    print("CREANDO BASE DE DATOS")
     print("=" * 60)
 
     engine = create_engine(db_connection_string)
@@ -52,9 +52,9 @@ def create_database_from_dataframes(
 
     for table_name, df in dataframes.items():
         try:
-            print(f"\n📂 Procesando {table_name}...")
-            print(f"   ✅ {len(df):,} registros | {len(df.columns)} columnas")
-            print(f"   💾 Guardando en tabla '{table_name}'...")
+            print(f"\nProcesando {table_name}...")
+            print(f"   {len(df):,} registros | {len(df.columns)} columnas")
+            print(f"   Guardando en tabla '{table_name}'...")
 
             # Guardar en SQL
             df.to_sql(
@@ -68,10 +68,10 @@ def create_database_from_dataframes(
             print(f"   ✅ Tabla '{table_name}' creada exitosamente")
 
         except Exception as e:
-            print(f"   ❌ Error: {str(e)}")
+            print(f"Error: {str(e)}")
 
     # Crear índices para optimizar queries
-    print("\n🔧 Creando índices...")
+    print("\nCreando índices...")
 
     with engine.connect() as conn:
         indices = [
@@ -92,9 +92,9 @@ def create_database_from_dataframes(
             except:
                 pass
 
-    print("✅ Índices creados")
+    print("Índices creados")
     print("\n" + "=" * 60)
-    print("✅ BASE DE DATOS CREADA EXITOSAMENTE")
+    print("BASE DE DATOS CREADA EXITOSAMENTE")
     print("=" * 60)
 
     engine.dispose()
@@ -118,13 +118,13 @@ def process_full_dataset_for_training(
     """
 
     print("\n" + "=" * 60)
-    print("🚀 PROCESANDO DATASET COMPLETO PARA ENTRENAMIENTO")
+    print("PROCESANDO DATASET COMPLETO PARA ENTRENAMIENTO")
     print("=" * 60)
 
     engine = create_engine(db_connection_string)
 
     # 1. Obtener lista de clientes
-    print("\n📊 Obteniendo lista de clientes...")
+    print("\nObteniendo lista de clientes...")
     query = text("""
         SELECT SK_ID_CURR, AMT_CREDIT, NAME_CONTRACT_TYPE, TARGET
         FROM application_train
@@ -134,7 +134,7 @@ def process_full_dataset_for_training(
     clients_info = pd.read_sql(query, engine)
     total_clients = len(clients_info)
 
-    print(f"✅ Total de clientes: {total_clients:,}")
+    print(f"Total de clientes: {total_clients:,}")
 
     # 2. Procesar en batches
     pipeline = ClientDataPipelineSQL(db_connection_string)
@@ -142,7 +142,7 @@ def process_full_dataset_for_training(
     all_data = []
     num_batches = (total_clients + batch_size - 1) // batch_size
 
-    print(f"\n⚙️  Procesando en {num_batches} batches...")
+    print(f"\nProcesando en {num_batches} batches...")
 
     start_time = time.time()
     failed_clients = []
@@ -152,7 +152,7 @@ def process_full_dataset_for_training(
         batch_end = min((batch_idx + 1) * batch_size, total_clients)
         batch_clients = clients_info.iloc[batch_start:batch_end]
 
-        print(f"\n📦 Batch {batch_idx + 1}/{num_batches}")
+        print(f"\nBatch {batch_idx + 1}/{num_batches}")
 
         batch_data = []
 
@@ -191,14 +191,14 @@ def process_full_dataset_for_training(
         rate = processed / elapsed
         remaining = (total_clients - processed) / rate if rate > 0 else 0
 
-        print(f"⏱️  {elapsed / 60:.1f}min | {rate:.1f} clientes/s | Restante: {remaining / 60:.1f}min")
+        print(f"{elapsed / 60:.1f}min | {rate:.1f} clientes/s | Restante: {remaining / 60:.1f}min")
 
     # 3. Combinar todo
-    print("\n🔗 Combinando batches...")
+    print("\nCombinando batches...")
     final_data = pd.concat(all_data, ignore_index=True)
 
     # 4. Guardar
-    print(f"\n💾 Guardando dataset final...")
+    print(f"\nGuardando dataset final...")
     final_data.to_parquet(output_path, index=False, compression='snappy')
     final_data.to_csv(output_path.replace('.parquet', '.csv'), index=False)
 
@@ -206,15 +206,15 @@ def process_full_dataset_for_training(
     total_time = time.time() - start_time
 
     print("\n" + "=" * 60)
-    print("✅ PROCESAMIENTO COMPLETADO")
+    print("PROCESAMIENTO COMPLETADO")
     print("=" * 60)
-    print(f"📊 Clientes procesados: {len(final_data):,}")
-    print(f"📊 Total features: {len(final_data.columns):,}")
-    print(f"❌ Clientes fallidos: {len(failed_clients)}")
-    print(f"⏱️  Tiempo total: {total_time / 60:.1f} minutos")
-    print(f"\n🎯 Distribución TARGET:")
+    print(f"Clientes procesados: {len(final_data):,}")
+    print(f"Total features: {len(final_data.columns):,}")
+    print(f"Clientes fallidos: {len(failed_clients)}")
+    print(f"⏱Tiempo total: {total_time / 60:.1f} minutos")
+    print(f"\nDistribución TARGET:")
     print(final_data['TARGET'].value_counts())
-    print(f"\n💾 Archivo guardado: {output_path}")
+    print(f"\nArchivo guardado: {output_path}")
     print("=" * 60)
 
     pipeline.close()
@@ -1244,5 +1244,5 @@ if __name__ == "__main__":
         batch_size=1000
     )
 
-    print("\n🎉 ¡TODO LISTO PARA ENTRENAR!")
+    print("\n¡TODO LISTO PARA ENTRENAR!")
 '''
