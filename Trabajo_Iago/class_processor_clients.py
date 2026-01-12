@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 import warnings
 from sqlalchemy import create_engine, text
+import joblib
 from tqdm import tqdm
 import gc
 import time
+import shap
 
 warnings.filterwarnings('ignore')
 
@@ -235,7 +237,7 @@ def process_client(
     - Devuelve el dataframe listo para el modelo
     """
 
-    # 1️⃣ Cargar cliente base
+    # Cargar cliente base
     base = application_train.loc[
         application_train["SK_ID_CURR"] == sk_id_curr
     ].copy()
@@ -243,15 +245,15 @@ def process_client(
     if base.empty:
         raise ValueError(f"Cliente {sk_id_curr} no existe")
 
-    # 2️⃣ Aplicar contrafactual
+    # Aplicar contrafactual
     base["AMT_CREDIT"] = new_income
     base["NAME_CONTRACT_TYPE"] = new_credit_type
 
-    # 3️⃣ Extraer datos necesarios para el pipeline
+    # Extraer datos necesarios para el pipeline
     amt_credit = float(base["AMT_CREDIT"].iloc[0])
     credit_type = base["NAME_CONTRACT_TYPE"].iloc[0]
 
-    # 4️⃣ Ejecutar pipeline SQL completo
+    # Ejecutar pipeline SQL completo
     pipeline = ClientDataPipelineSQL(db_connection_string)
 
     engineered = pipeline.get_client_data(
@@ -263,21 +265,64 @@ def process_client(
     if engineered is None:
         raise RuntimeError("El pipeline no devolvió datos")
 
-    # 5️⃣ Inyectar el nuevo income (porque SQL no lo conoce)
+    # Inyectar el nuevo income (porque SQL no lo conoce)
     engineered["AMT_CREDIT"] = new_income
-
-    # 6️⃣ Recalcular las features que dependen del income
-    engineered = pipeline._create_derived_features(engineered)
-    engineered = pipeline._create_cross_features(engineered)
-    engineered = pipeline._create_complete_features(engineered)
 
     engineered = engineered.drop(columns=['SK_ID_CURR', 'TARGET'])
 
     return engineered
 
 
+def predict(user):
+    """
+    usando los datos creados en process client
+    crea una doble prediccion en porcentaje
+    para 0 (No Default)
+    y 1 (Default)
+    """
 
+    #loads the model
+    model = joblib.load("../models/catboost_best_scores.pkl")
 
+    #% for 0(no default) and 1(default) in that order
+    prediction = model.predict_proba(user)
+
+    return prediction
+
+def explain(user_df: pd.DataFrame):
+    """
+    Devuelve explicación SHAP de un cliente:
+    - top 10 features que suben riesgo
+    - top 10 que lo reducen
+    """
+
+    #Loads the model
+    model = joblib.load("../models/catboost_best_scores.pkl")
+
+    # Explainer
+    explainer = shap.TreeExplainer(model)
+
+    #SHAP values
+    shap_values = explainer.shap_values(user_df)
+
+    #Binary classification
+    if isinstance(shap_values, list):
+        shap_values = shap_values[1]
+
+    shap_values = shap_values[0]  # solo un cliente
+
+    #df for results
+    result = pd.DataFrame({
+        "feature": user_df.columns,
+        "value": user_df.iloc[0].values,
+        "shap": shap_values
+    })
+
+    #Top drivers
+    top_bad = result.sort_values("shap", ascending=False).head(10)
+    top_good = result.sort_values("shap", ascending=True).head(10)
+
+    return top_bad, top_good
 
 # ============= CLASE PIPELINE =============
 
