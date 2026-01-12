@@ -9,7 +9,6 @@ import time
 warnings.filterwarnings('ignore')
 
 # ============= CARGAR DATASETS =============
-print("📥 Cargando datasets...")
 
 application_train = pd.read_csv('../data/interim/aplicationtrainlimpio1.csv')
 bureau = pd.read_csv('../data/raw/bureau.csv')
@@ -19,7 +18,7 @@ pos_cash_balance = pd.read_csv('../data/raw/POS_CASH_balance.csv')
 credit_card_balance = pd.read_csv('../data/raw/credit_card_balance.csv')
 installments_payments = pd.read_csv('../data/raw/installments_payments.csv')
 
-print("✅ Datasets cargados exitosamente\n")
+
 
 
 def create_database_from_dataframes(
@@ -222,9 +221,66 @@ def process_full_dataset_for_training(
     return final_data
 
 
-# ============= CLASE PIPELINE (copiada de tu código) =============
+def process_client(
+    sk_id_curr: int,
+    new_income: float,
+    new_credit_type: str,
+    db_connection_string: str = "sqlite:///home_credit.db"
+) -> pd.DataFrame:
+    """
+    Genera un escenario contrafactual completo para un cliente:
+    - Busca el cliente en application_train
+    - Sustituye AMT_INCOME_TOTAL y NAME_CONTRACT_TYPE
+    - Ejecuta toda la pipeline SQL
+    - Devuelve el dataframe listo para el modelo
+    """
 
-#%%
+    # 1️⃣ Cargar cliente base
+    base = application_train.loc[
+        application_train["SK_ID_CURR"] == sk_id_curr
+    ].copy()
+
+    if base.empty:
+        raise ValueError(f"Cliente {sk_id_curr} no existe")
+
+    # 2️⃣ Aplicar contrafactual
+    base["AMT_CREDIT"] = new_income
+    base["NAME_CONTRACT_TYPE"] = new_credit_type
+
+    # 3️⃣ Extraer datos necesarios para el pipeline
+    amt_credit = float(base["AMT_CREDIT"].iloc[0])
+    credit_type = base["NAME_CONTRACT_TYPE"].iloc[0]
+
+    # 4️⃣ Ejecutar pipeline SQL completo
+    pipeline = ClientDataPipelineSQL(db_connection_string)
+
+    engineered = pipeline.get_client_data(
+        sk_id_curr=sk_id_curr,
+        amt_credit=amt_credit,
+        credit_type=credit_type
+    )
+
+    if engineered is None:
+        raise RuntimeError("El pipeline no devolvió datos")
+
+    # 5️⃣ Inyectar el nuevo income (porque SQL no lo conoce)
+    engineered["AMT_CREDIT"] = new_income
+
+    # 6️⃣ Recalcular las features que dependen del income
+    engineered = pipeline._create_derived_features(engineered)
+    engineered = pipeline._create_cross_features(engineered)
+    engineered = pipeline._create_complete_features(engineered)
+
+    engineered = engineered.drop(columns=['SK_ID_CURR', 'TARGET'])
+
+    return engineered
+
+
+
+
+
+# ============= CLASE PIPELINE =============
+
 ## try the object with sql
 
 from sqlalchemy import create_engine, text
@@ -1127,8 +1183,9 @@ class ClientDataPipelineSQL:
     def close(self):
         """Cierra la conexión"""
         self.conn.close()
-# ============= EJECUCIÓN SIMPLE =============
 
+
+'''
 if __name__ == "__main__":
     # PASO 1: Crear base de datos desde los DataFrames ya cargados
     create_database_from_dataframes(
@@ -1143,3 +1200,4 @@ if __name__ == "__main__":
     )
 
     print("\n🎉 ¡TODO LISTO PARA ENTRENAR!")
+'''
