@@ -23,7 +23,7 @@ train_dataset = pd.read_csv('../data/processed/home_credit_train_ready.csv')
 
 # ============= CARGAR MODELO =============
 
-model_using = joblib.load('../models/catboost_new_dataset.pkl')
+model_using = joblib.load('../models/catboost_best_scores.pkl')
 
 def create_database_from_dataframes(
         db_connection_string: str = 'sqlite:///home_credit.db'
@@ -274,39 +274,28 @@ def process_client(
 
     engineered = engineered.replace([np.inf, -np.inf], np.nan)
 
-    """
-    # rebuild original categories
-    num_cols = train_dataset.select_dtypes(exclude=["object"]).columns.tolist()
-
-    exclude_cols = set(['SK_ID_CURR', 'TARGET'] + num_cols)
-
-    cat_maps = {}
-    for col in train_dataset.columns:
-        if col not in exclude_cols:
-            cat_maps[col] = train_dataset[col].astype('category').cat.categories
-
-    for col, cats in cat_maps.items():
-        engineered[col] = pd.Categorical(engineered[col], categories=cats)
-    """
-    # columnas a excluir
     exclude_cols = ['SK_ID_CURR', 'TARGET']
-
-    # columnas numéricas
     num_cols = train_dataset.select_dtypes(exclude=["object"]).columns.tolist()
-
-    # columnas categóricas que quieres para XGB
     cat_cols = [c for c in train_dataset.columns if c not in exclude_cols + num_cols]
 
-    # convertir numéricas a float
+    # Convertir numéricas a float
     for col in num_cols:
         if col in engineered.columns:
             engineered[col] = engineered[col].astype(float)
 
-    # reconstruir categorías
-    cat_maps = {col: train_dataset[col].astype('category').cat.categories for col in cat_cols}
 
-    for col, cats in cat_maps.items():
-        engineered[col] = pd.Categorical(engineered[col], categories=cats)
+    for col in engineered.select_dtypes(include='object').columns:
+        engineered[col] = engineered[col].fillna('missing')
+
+    for col in engineered.select_dtypes(exclude=['object']).columns:
+        engineered[col] = engineered[col].fillna(0)
+
+    for col in cat_cols:
+        if col in engineered.columns:
+            cats = train_dataset[col].astype('category').cat.categories.tolist()
+            if 'missing' not in cats:
+                cats.append('missing')
+            engineered[col] = pd.Categorical(engineered[col], categories=cats)
 
     return engineered
 
