@@ -19,9 +19,11 @@ previous_application = pd.read_csv('../data/raw/previous_application.csv')
 pos_cash_balance = pd.read_csv('../data/raw/POS_CASH_balance.csv')
 credit_card_balance = pd.read_csv('../data/raw/credit_card_balance.csv')
 installments_payments = pd.read_csv('../data/raw/installments_payments.csv')
+train_dataset = pd.read_csv('../data/processed/home_credit_train_ready.csv')
 
+# ============= CARGAR MODELO =============
 
-
+model_using = joblib.load('../models/catboost_new_dataset.pkl')
 
 def create_database_from_dataframes(
         db_connection_string: str = 'sqlite:///home_credit.db'
@@ -225,14 +227,14 @@ def process_full_dataset_for_training(
 
 def process_client(
     sk_id_curr: int,
-    new_income: float,
+    new_credit: float,
     new_credit_type: str,
     db_connection_string: str = "sqlite:///home_credit.db"
 ) -> pd.DataFrame:
     """
     Genera un escenario contrafactual completo para un cliente:
     - Busca el cliente en application_train
-    - Sustituye AMT_INCOME_TOTAL y NAME_CONTRACT_TYPE
+    - Sustituye AMT_CREDIT  y NAME_CONTRACT_TYPE
     - Ejecuta toda la pipeline SQL
     - Devuelve el dataframe listo para el modelo
     """
@@ -246,7 +248,7 @@ def process_client(
         raise ValueError(f"Cliente {sk_id_curr} no existe")
 
     # Aplicar contrafactual
-    base["AMT_CREDIT"] = new_income
+    base["AMT_CREDIT"] = new_credit
     base["NAME_CONTRACT_TYPE"] = new_credit_type
 
     # Extraer datos necesarios para el pipeline
@@ -266,9 +268,45 @@ def process_client(
         raise RuntimeError("El pipeline no devolvió datos")
 
     # Inyectar el nuevo income (porque SQL no lo conoce)
-    engineered["AMT_CREDIT"] = new_income
+    engineered["AMT_CREDIT"] = new_credit
 
     engineered = engineered.drop(columns=['SK_ID_CURR', 'TARGET'])
+
+    engineered = engineered.replace([np.inf, -np.inf], np.nan)
+
+    """
+    # rebuild original categories
+    num_cols = train_dataset.select_dtypes(exclude=["object"]).columns.tolist()
+
+    exclude_cols = set(['SK_ID_CURR', 'TARGET'] + num_cols)
+
+    cat_maps = {}
+    for col in train_dataset.columns:
+        if col not in exclude_cols:
+            cat_maps[col] = train_dataset[col].astype('category').cat.categories
+
+    for col, cats in cat_maps.items():
+        engineered[col] = pd.Categorical(engineered[col], categories=cats)
+    """
+    # columnas a excluir
+    exclude_cols = ['SK_ID_CURR', 'TARGET']
+
+    # columnas numéricas
+    num_cols = train_dataset.select_dtypes(exclude=["object"]).columns.tolist()
+
+    # columnas categóricas que quieres para XGB
+    cat_cols = [c for c in train_dataset.columns if c not in exclude_cols + num_cols]
+
+    # convertir numéricas a float
+    for col in num_cols:
+        if col in engineered.columns:
+            engineered[col] = engineered[col].astype(float)
+
+    # reconstruir categorías
+    cat_maps = {col: train_dataset[col].astype('category').cat.categories for col in cat_cols}
+
+    for col, cats in cat_maps.items():
+        engineered[col] = pd.Categorical(engineered[col], categories=cats)
 
     return engineered
 
@@ -282,7 +320,7 @@ def predict(user):
     """
 
     #loads the model
-    model = joblib.load("../models/catboost_best_scores.pkl")
+    model = model_using
 
     #% for 0(no default) and 1(default) in that order
     prediction = model.predict_proba(user)
@@ -297,7 +335,7 @@ def explain(user_df: pd.DataFrame):
     """
 
     #Loads the model
-    model = joblib.load("../models/catboost_best_scores.pkl")
+    model = model_using
 
     # Explainer
     explainer = shap.TreeExplainer(model)
@@ -324,7 +362,6 @@ def explain(user_df: pd.DataFrame):
 
     return top_bad, top_good
 
-# ============= CLASE PIPELINE =============
 
 ## try the object with sql
 
@@ -1230,8 +1267,9 @@ class ClientDataPipelineSQL:
         self.conn.close()
 
 
-'''
+
 if __name__ == "__main__":
+    '''
     # PASO 1: Crear base de datos desde los DataFrames ya cargados
     create_database_from_dataframes(
         db_connection_string='sqlite:///home_credit.db'
@@ -1243,6 +1281,5 @@ if __name__ == "__main__":
         output_path='../data/processed/home_credit_train_ready.parquet',
         batch_size=1000
     )
-
-    print("\n¡TODO LISTO PARA ENTRENAR!")
-'''
+    '''
+    print(model_using.named_steps)
