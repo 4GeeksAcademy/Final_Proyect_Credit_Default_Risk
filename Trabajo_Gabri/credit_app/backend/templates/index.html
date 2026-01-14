@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitud de crédito</title>
+  <style>
+    :root{
+      --bg:#0b0f19; --card:#121a2a; --card2:#0f1626; --text:#e8eefc; --muted:#a9b4cc;
+      --border:rgba(255,255,255,0.12); --focus:rgba(120,160,255,0.45);
+      --ok:rgba(34,197,94,.35); --err:rgba(239,68,68,.35); --warn:rgba(245,158,11,.35);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background: radial-gradient(1000px 700px at 20% 10%, #142241 0%, transparent 55%),
+                  radial-gradient(900px 650px at 90% 30%, #1b2c54 0%, transparent 50%),
+                  var(--bg);
+      color:var(--text); min-height:100vh; display:grid; place-items:center; padding:24px;
+    }
+    .container{width:100%; max-width:920px}
+    h1{margin:0 0 10px; font-size:22px}
+    .subtitle{margin:0 0 18px; color:var(--muted); font-size:14px; line-height:1.35}
+
+    .stepper{display:flex; gap:8px; flex-wrap:wrap; margin:0 0 16px}
+    .step{border:1px solid var(--border); background:rgba(255,255,255,0.04); color:var(--muted);
+      padding:7px 10px; border-radius:999px; font-size:12px; font-weight:700}
+    .step.active{color:var(--text); border-color:rgba(120,160,255,0.55); box-shadow:0 0 0 4px rgba(120,160,255,0.10)}
+
+    .choice-grid{display:grid; grid-template-columns:repeat(2,minmax(220px,1fr)); gap:16px}
+    .choice-card{
+      background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
+      border:1px solid var(--border); border-radius:16px; padding:18px; min-height:160px;
+      display:grid; gap:10px; cursor:pointer; user-select:none;
+      transition:transform .12s ease, border-color .12s ease;
+    }
+    .choice-card:hover{transform:translateY(-2px); border-color:rgba(255,255,255,0.22)}
+    .badge{justify-self:start; display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px; border:1px solid var(--border); color:var(--muted); font-size:12px}
+    .choice-title{margin:0; font-size:18px; font-weight:800}
+    .choice-desc{margin:0; color:var(--muted); font-size:14px; line-height:1.35}
+
+    .panel{
+      margin-top:18px; background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
+      border:1px solid var(--border); border-radius:16px; padding:18px;
+    }
+    .panel-header{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px}
+    .panel-title{margin:0; font-size:16px; font-weight:800}
+
+    .btn{
+      appearance:none; border:1px solid var(--border); background:rgba(255,255,255,0.06);
+      color:var(--text); border-radius:10px; padding:10px 12px; cursor:pointer;
+      transition:border-color .12s ease, transform .12s ease, opacity .12s ease;
+      font-weight:700; font-size:13px;
+    }
+    .btn:hover{border-color:rgba(255,255,255,0.25); transform:translateY(-1px)}
+    .btn:disabled{opacity:.55; cursor:not-allowed; transform:none}
+    .btn-primary{background:rgba(120,160,255,0.22); border-color:rgba(120,160,255,0.5)}
+    .btn-danger{background:rgba(239,68,68,0.14); border-color:rgba(239,68,68,0.35)}
+
+    .form-grid{display:grid; gap:12px; margin-top:10px}
+    .row{
+      display:grid; grid-template-columns:220px 1fr; gap:12px; align-items:center;
+      padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.03);
+    }
+    label{font-size:13px; color:var(--muted); font-weight:700}
+    input, select{
+      width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
+      background:rgba(0,0,0,0.18); color:var(--text); outline:none; font-size:14px;
+    }
+    input:focus, select:focus{border-color:rgba(120,160,255,0.55); box-shadow:0 0 0 4px var(--focus)}
+
+    .field-error{margin-top:6px; font-size:12px; color:rgba(255,255,255,0.85)}
+    .field-error strong{color:rgba(239,68,68,0.95)}
+    .hidden{display:none !important}
+
+    .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap}
+    .status{
+      margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid var(--border);
+      background:rgba(0,0,0,0.18); color:var(--muted); white-space:pre-wrap;
+    }
+    .status.ok{border-color:var(--ok)} .status.err{border-color:var(--err)} .status.warn{border-color:var(--warn)}
+
+    .summary{border:1px solid var(--border); background:rgba(255,255,255,0.03); border-radius:12px; overflow:hidden}
+    .summary-row{display:grid; grid-template-columns:220px 1fr; gap:12px; padding:12px; border-bottom:1px solid var(--border)}
+    .summary-row:last-child{border-bottom:0}
+    .summary-k{color:var(--muted); font-weight:800; font-size:13px}
+    .summary-v{font-weight:800}
+
+    @media (max-width:720px){
+      .choice-grid{grid-template-columns:1fr}
+      .row, .summary-row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>Solicitud de crédito</h1>
+    <p class="subtitle">Frontend conectado a FastAPI (scoring existente + registro nuevo). SHAP siempre activo.</p>
+
+    <div class="stepper" aria-label="Progreso">
+      <span class="step" id="step-1">1) Selección</span>
+      <span class="step" id="step-2">2) Datos</span>
+      <span class="step" id="step-3">3) Confirmar</span>
+      <span class="step" id="step-4">4) Resultado</span>
+    </div>
+
+    <section id="screen-choice" class="choice-grid" aria-label="Selección">
+      <div class="choice-card" id="btn-existing" role="button" tabindex="0">
+        <span class="badge">👤 Cliente existente</span>
+        <h2 class="choice-title">Cliente existente</h2>
+        <p class="choice-desc">Calcula riesgo usando SK_ID_CURR.</p>
+      </div>
+
+      <div class="choice-card" id="btn-new" role="button" tabindex="0">
+        <span class="badge">✨ Nuevo cliente</span>
+        <h2 class="choice-title">Nuevo cliente</h2>
+        <p class="choice-desc">Registro de cliente.</p>
+      </div>
+    </section>
+
+    <!-- Existing -->
+    <section id="screen-existing" class="panel hidden" aria-label="Existente">
+      <div class="panel-header">
+        <h3 class="panel-title">Cliente existente → Datos del crédito</h3>
+        <button class="btn" id="btn-back-existing" type="button">← Volver</button>
+      </div>
+
+      <form id="form-existing" novalidate>
+        <div class="form-grid">
+          <div class="row">
+            <label for="skIdCurr">SK_ID_CURR</label>
+            <div>
+              <input id="skIdCurr" name="skIdCurr" type="number" min="1" placeholder="Ej: 10293" required />
+              <div class="field-error hidden" id="err-sk"><strong>Error:</strong> SK_ID_CURR debe ser un número > 0.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="amtCredit">Cantidad de crédito</label>
+            <div>
+              <input id="amtCredit" name="amtCredit" type="number" min="0" step="0.01" placeholder="Ej: 5000" required />
+              <div class="field-error hidden" id="err-amt"><strong>Error:</strong> La cantidad debe ser mayor que 0.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="creditType">Tipo de crédito</label>
+            <div>
+              <select id="creditType" name="creditType" required>
+                <option value="" selected disabled>Selecciona una opción</option>
+                <option value="revolving_loans">Revolving loans</option>
+                <option value="cash_loans">Cash loans</option>
+              </select>
+              <div class="field-error hidden" id="err-type"><strong>Error:</strong> Selecciona un tipo de crédito.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="reset">Limpiar</button>
+          <button class="btn btn-primary" type="submit">Continuar</button>
+        </div>
+
+        <div class="status hidden" id="status-existing"></div>
+      </form>
+    </section>
+
+    <!-- New -->
+    <section id="screen-new" class="panel hidden" aria-label="Nuevo cliente">
+      <div class="panel-header">
+        <h3 class="panel-title">Nuevo cliente → Registro</h3>
+        <button class="btn" id="btn-back-new" type="button">← Volver</button>
+      </div>
+
+      <form id="form-new" novalidate>
+        <div class="form-grid">
+          <div class="row">
+            <label for="fullName">Nombre completo</label>
+            <div>
+              <input id="fullName" name="fullName" type="text" placeholder="Ej: Juan Pérez" required />
+              <div class="field-error hidden" id="err-name"><strong>Error:</strong> Nombre requerido.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="dni">DNI/NIE</label>
+            <div>
+              <input id="dni" name="dni" type="text" placeholder="Ej: 12345678Z" required />
+              <div class="field-error hidden" id="err-dni"><strong>Error:</strong> DNI/NIE requerido.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="email">Email</label>
+            <div>
+              <input id="email" name="email" type="email" placeholder="Ej: juan@email.com" required />
+              <div class="field-error hidden" id="err-email"><strong>Error:</strong> Email válido requerido.</div>
+            </div>
+          </div>
+
+          <div class="row">
+            <label for="phone">Teléfono</label>
+            <div>
+              <input id="phone" name="phone" type="tel" placeholder="Ej: 600123123" required />
+              <div class="field-error hidden" id="err-phone"><strong>Error:</strong> Teléfono requerido.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="reset">Limpiar</button>
+          <button class="btn btn-primary" type="submit">Continuar</button>
+        </div>
+
+        <div class="status hidden" id="status-new"></div>
+      </form>
+    </section>
+
+    <!-- Confirm -->
+    <section id="screen-confirm" class="panel hidden" aria-label="Confirmación">
+      <div class="panel-header">
+        <h3 class="panel-title" id="confirm-title">Confirmar</h3>
+        <button class="btn" id="btn-confirm-edit" type="button">← Editar</button>
+      </div>
+
+      <div class="summary" id="confirm-summary"></div>
+
+      <div class="actions">
+        <button class="btn btn-danger" id="btn-confirm-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirm-send" type="button">Enviar</button>
+      </div>
+
+      <div class="status hidden" id="status-confirm"></div>
+    </section>
+
+    <!-- Result -->
+    <section id="screen-result" class="panel hidden" aria-label="Resultado">
+      <div class="panel-header">
+        <h3 class="panel-title">Resultado</h3>
+        <button class="btn" id="btn-home" type="button">🏠 Inicio</button>
+      </div>
+
+      <div class="status" id="status-result">Aquí verás la respuesta.</div>
+
+      <div class="actions">
+        <button class="btn" id="btn-new-request" type="button">Nueva operación</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // "" = mismo host/puerto (recomendado). null = demo.
+    const API_BASE = "";
+
+    const ENDPOINTS = {
+      score: "/api/score",
+      newClient: "/api/new-client"
+    };
+
+    async function postJSON(path, payload){
+      if (API_BASE === null){
+        await new Promise(r => setTimeout(r, 600));
+        return { demo: true, echo: payload };
+      }
+
+      const url = API_BASE + path;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const ct = resp.headers.get("content-type") || "";
+      const isJson = ct.includes("application/json");
+      const body = isJson ? await resp.json() : await resp.text();
+
+      if (!resp.ok){
+        const msg = isJson ? (body?.detail || body?.error || JSON.stringify(body)) : String(body);
+        throw new Error(msg || `HTTP ${resp.status}`);
+      }
+      return body;
+    }
+
+    const state = { flow: null, payload: null, editScreen: null };
+
+    const screens = {
+      choice: document.getElementById("screen-choice"),
+      existing: document.getElementById("screen-existing"),
+      newClient: document.getElementById("screen-new"),
+      confirm: document.getElementById("screen-confirm"),
+      result: document.getElementById("screen-result")
+    };
+
+    const steps = {
+      s1: document.getElementById("step-1"),
+      s2: document.getElementById("step-2"),
+      s3: document.getElementById("step-3"),
+      s4: document.getElementById("step-4")
+    };
+
+    const btnExisting = document.getElementById("btn-existing");
+    const btnNew = document.getElementById("btn-new");
+    const btnBackExisting = document.getElementById("btn-back-existing");
+    const btnBackNew = document.getElementById("btn-back-new");
+
+    const formExisting = document.getElementById("form-existing");
+    const formNew = document.getElementById("form-new");
+
+    const statusExisting = document.getElementById("status-existing");
+    const statusNew = document.getElementById("status-new");
+    const statusConfirm = document.getElementById("status-confirm");
+    const statusResult = document.getElementById("status-result");
+
+    const confirmTitle = document.getElementById("confirm-title");
+    const confirmSummary = document.getElementById("confirm-summary");
+
+    const btnConfirmEdit = document.getElementById("btn-confirm-edit");
+    const btnConfirmCancel = document.getElementById("btn-confirm-cancel");
+    const btnConfirmSend = document.getElementById("btn-confirm-send");
+
+    const btnHome = document.getElementById("btn-home");
+    const btnNewRequest = document.getElementById("btn-new-request");
+
+    const errSk = document.getElementById("err-sk");
+    const errAmt = document.getElementById("err-amt");
+    const errType = document.getElementById("err-type");
+
+    const errName = document.getElementById("err-name");
+    const errDni = document.getElementById("err-dni");
+    const errEmail = document.getElementById("err-email");
+    const errPhone = document.getElementById("err-phone");
+
+    function setStep(activeIdx){
+      [steps.s1, steps.s2, steps.s3, steps.s4].forEach((el, i) => el.classList.toggle("active", i === activeIdx));
+    }
+
+    function navigateTo(name){
+      Object.entries(screens).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
+      if (name === "choice") setStep(0);
+      if (name === "existing" || name === "newClient") setStep(1);
+      if (name === "confirm") setStep(2);
+      if (name === "result") setStep(3);
+    }
+
+    function setStatus(el, type, msg){
+      el.classList.remove("hidden","ok","err","warn");
+      if (type) el.classList.add(type);
+      el.textContent = msg;
+    }
+
+    function clearStatus(el){
+      el.classList.add("hidden");
+      el.textContent = "";
+      el.classList.remove("ok","err","warn");
+    }
+
+    function setLoading(button, on, text="Procesando..."){
+      if (!button) return;
+      if (on){
+        button.dataset.prevText = button.textContent;
+        button.textContent = text;
+        button.disabled = true;
+      } else {
+        button.textContent = button.dataset.prevText || button.textContent;
+        button.disabled = false;
+      }
+    }
+
+    function makeKeyboardClickable(el, handler){
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " "){
+          e.preventDefault();
+          handler();
+        }
+      });
+    }
+
+    function validateExisting(){
+      clearStatus(statusExisting);
+      errSk.classList.add("hidden");
+      errAmt.classList.add("hidden");
+      errType.classList.add("hidden");
+
+      const sk = Number(document.getElementById("skIdCurr").value);
+      const amt = Number(document.getElementById("amtCredit").value);
+      const type = document.getElementById("creditType").value;
+
+      let ok = true;
+      if (!Number.isFinite(sk) || sk <= 0){ errSk.classList.remove("hidden"); ok = false; }
+      if (!Number.isFinite(amt) || amt <= 0){ errAmt.classList.remove("hidden"); ok = false; }
+      if (!type){ errType.classList.remove("hidden"); ok = false; }
+
+      return { ok, payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type } };
+    }
+
+    function validateNew(){
+      clearStatus(statusNew);
+      [errName, errDni, errEmail, errPhone].forEach(e => e.classList.add("hidden"));
+
+      const fullName = document.getElementById("fullName").value.trim();
+      const dni = document.getElementById("dni").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+
+      let ok = true;
+      if (!fullName){ errName.classList.remove("hidden"); ok = false; }
+      if (!dni){ errDni.classList.remove("hidden"); ok = false; }
+      if (!email || !email.includes("@")){ errEmail.classList.remove("hidden"); ok = false; }
+      if (!phone){ errPhone.classList.remove("hidden"); ok = false; }
+
+      return { ok, payload: { full_name: fullName, dni, email, phone } };
+    }
+
+    function buildSummaryRows(rows){
+      return rows.map(r => `
+        <div class="summary-row">
+          <div class="summary-k">${r.k}</div>
+          <div class="summary-v">${r.v}</div>
+        </div>
+      `).join("");
+    }
+
+    function creditTypeLabel(v){
+      const map = {
+        revolving_loans: "Revolving loans",
+        cash_loans: "Cash loans"
+      };
+      return map[v] || v;
+    }
+
+    btnExisting.addEventListener("click", () => {
+      state.flow = "existing";
+      state.editScreen = "existing";
+      navigateTo("existing");
+      document.getElementById("skIdCurr").focus();
+    });
+    makeKeyboardClickable(btnExisting, () => btnExisting.click());
+
+    btnNew.addEventListener("click", () => {
+      state.flow = "new";
+      state.editScreen = "newClient";
+      navigateTo("newClient");
+      document.getElementById("fullName").focus();
+    });
+    makeKeyboardClickable(btnNew, () => btnNew.click());
+
+    btnBackExisting.addEventListener("click", () => navigateTo("choice"));
+    btnBackNew.addEventListener("click", () => navigateTo("choice"));
+
+    btnHome.addEventListener("click", () => navigateTo("choice"));
+    btnNewRequest.addEventListener("click", () => {
+      formExisting.reset();
+      formNew.reset();
+      clearStatus(statusExisting);
+      clearStatus(statusNew);
+      clearStatus(statusConfirm);
+      setStatus(statusResult, null, "Aquí verás la respuesta.");
+      navigateTo("choice");
+    });
+
+    formExisting.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const v = validateExisting();
+      if (!v.ok){
+        setStatus(statusExisting, "err", "Corrige los campos marcados.");
+        return;
+      }
+      state.payload = v.payload;
+
+      confirmTitle.textContent = "Confirmar scoring (cliente existente)";
+      confirmSummary.innerHTML = buildSummaryRows([
+        { k:"SK_ID_CURR", v:String(state.payload.sk_id_curr) },
+        { k:"Cantidad", v:`${state.payload.amt_credit.toFixed(2)} €` },
+        { k:"Tipo", v:creditTypeLabel(state.payload.credit_type) }
+      ]);
+
+      navigateTo("confirm");
+    });
+
+    formNew.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const v = validateNew();
+      if (!v.ok){
+        setStatus(statusNew, "err", "Corrige los campos marcados.");
+        return;
+      }
+      state.payload = v.payload;
+
+      confirmTitle.textContent = "Confirmar registro (nuevo cliente)";
+      confirmSummary.innerHTML = buildSummaryRows([
+        { k:"Nombre", v: state.payload.full_name },
+        { k:"DNI/NIE", v: state.payload.dni },
+        { k:"Email", v: state.payload.email },
+        { k:"Teléfono", v: state.payload.phone }
+      ]);
+
+      navigateTo("confirm");
+    });
+
+    btnConfirmEdit.addEventListener("click", () => {
+      clearStatus(statusConfirm);
+      navigateTo(state.editScreen);
+    });
+
+    btnConfirmCancel.addEventListener("click", () => {
+      clearStatus(statusConfirm);
+      navigateTo("choice");
+    });
+
+    btnConfirmSend.addEventListener("click", async () => {
+      clearStatus(statusConfirm);
+      setLoading(btnConfirmSend, true, "Enviando...");
+
+      try {
+        if (state.flow === "existing"){
+          const res = await postJSON(ENDPOINTS.score, state.payload);
+          const p = res?.proba?.default ?? null;
+
+          if (typeof p === "number"){
+            const pct = (p * 100).toFixed(2) + "%";
+            setStatus(statusResult, "ok",
+              `Resultado scoring\n\nProbabilidad de DEFAULT: ${pct}\n\nRespuesta completa:\n` + JSON.stringify(res, null, 2)
+            );
+          } else {
+            setStatus(statusResult, "ok", "Respuesta:\n" + JSON.stringify(res, null, 2));
+          }
+        } else {
+          const res = await postJSON(ENDPOINTS.newClient, state.payload);
+          setStatus(statusResult, "ok",
+            `✅ Cliente registrado.\nID asignado: ${res.client_id ?? "(sin id)"}\nEstado: ${res.status ?? "OK"}\n\n` +
+            JSON.stringify(res, null, 2)
+          );
+        }
+
+        navigateTo("result");
+      } catch (err){
+        setStatus(statusConfirm, "err", "Error:\n" + (err?.message || String(err)));
+      } finally {
+        setLoading(btnConfirmSend, false);
+      }
+    });
+
+    // init
+    navigateTo("choice");
+    setStatus(statusResult, null, "Aquí verás la respuesta.");
+  </script>
+</body>
+</html>
