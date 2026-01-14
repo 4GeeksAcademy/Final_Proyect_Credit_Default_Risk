@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 import numpy as np
 from sklearn.metrics import confusion_matrix
-from src.evaluation.threshold_analysis import threshold_analysis
+from EXP.evaluation.threshold_analysis import threshold_analysis
 
 # =====================
 # Load data
