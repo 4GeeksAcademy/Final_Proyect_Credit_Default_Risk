@@ -3,3 +3,9 @@ __pycache__
 .learn
 /data
 /models
+
+# =========================
+# ASSETS PESADOS (ML)
+# =========================
+assets/
+backend/assets/
