@@ -1,6 +1,6 @@
 """
 api.py
-Backend FastAPI para Credit App (modelo real + SHAP siempre activo)
+Backend FastAPI para Credit App (modelo real + "SHAP" siempre activo)
 
 Qué hace:
 - Carga dataset "ready" (home_credit_train_ready.csv)
@@ -8,12 +8,15 @@ Qué hace:
 - Aplica el MISMO encoding que en entrenamiento:
     object -> category codes (con categorías fijadas desde el dataset)
 - POST /api/score: scoring por SK_ID_CURR + AMT_CREDIT + NAME_CONTRACT_TYPE
-- SHAP siempre activo (top features que suben/bajan riesgo)
+- Explicación tipo SHAP SIEMPRE activa usando contribuciones nativas de XGBoost (pred_contribs=True)
+  -> evita el bug de compatibilidad SHAP/XGBoost que rompe el startup.
 - Sirve el frontend en GET /app
 
 Notas:
 - Este pipeline es consistente con train_xgb_portable.py (mismo encoding).
-- Para producción real, lo ideal es guardar el encoder explícito (pero esto funciona).
+- Para producción real, lo ideal es guardar un encoder explícito (pero esto funciona).
+- Las contribuciones (pred_contribs) suelen estar en el espacio del margen (log-odds).
+  Para ranking/signo (sube/baja riesgo) es válido y estable.
 """
 
 from __future__ import annotations
@@ -23,7 +26,6 @@ from typing import Any, Dict, List, Literal, Optional
 
 import numpy as np
 import pandas as pd
-import shap
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -74,7 +76,6 @@ CAT_COLS: Optional[List[str]] = None
 CAT_MAP: Optional[Dict[str, List[str]]] = None  # col -> categories list
 
 MODEL: Optional[xgb.Booster] = None
-EXPLAINER: Optional[Any] = None
 
 
 # =========================
@@ -90,6 +91,11 @@ class ScoreRequest(BaseModel):
 # Helpers
 # =========================
 def _safe_value(v: Any) -> Any:
+    """
+    Convierte valores numpy/pandas a tipos JSON-friendly.
+    - NaN -> None
+    - numpy scalar -> python scalar
+    """
     try:
         if pd.isna(v):
             return None
@@ -102,12 +108,11 @@ def _safe_value(v: Any) -> Any:
 
 def build_category_maps(df: pd.DataFrame, cat_cols: List[str]) -> Dict[str, List[str]]:
     """
-    Construye el "diccionario" de categorías por columna desde el dataset.
+    Construye el diccionario de categorías por columna desde el dataset.
     Esto fija el mapping a codes de forma estable (igual que en entrenamiento).
     """
     mapping: Dict[str, List[str]] = {}
     for c in cat_cols:
-        # Ojo: convertimos a string para no romper por NaNs raros
         vals = df[c].astype("string")
         cats = pd.Series(vals.dropna().unique()).sort_values().tolist()
         mapping[c] = cats
@@ -123,6 +128,7 @@ def encode_like_training(X: pd.DataFrame) -> pd.DataFrame:
     assert CAT_COLS is not None and CAT_MAP is not None, "Encoder no inicializado"
     X2 = X.copy()
 
+    # Categóricas conocidas (mismo orden/categorías que el dataset)
     for c in CAT_COLS:
         if c not in X2.columns:
             continue
@@ -146,23 +152,32 @@ def predict_proba_default(X_num: pd.DataFrame) -> float:
     return float(pred[0])  # ya es probabilidad (binary:logistic)
 
 
-def shap_top(explainer: Any, X_num: pd.DataFrame, top_n: int = 8) -> Dict[str, Any]:
+def shap_top_xgb_contribs(X_num: pd.DataFrame, top_n: int = 8) -> Dict[str, Any]:
     """
-    SHAP para 1 fila (TreeExplainer).
+    Explicación tipo SHAP SIN librería shap:
+    usa contribuciones nativas de XGBoost -> pred_contribs=True.
+
     Devuelve top features que aumentan/disminuyen riesgo.
+    Nota: contribuciones suelen estar en espacio de margen (log-odds),
+    pero el signo/magnitud relativa sirve para "sube/baja riesgo".
     """
-    sv = explainer.shap_values(X_num)
-    # sv puede ser (1, n_features) para binary logistic
-    sv_vec = sv[0] if hasattr(sv, "__len__") and len(np.array(sv).shape) == 2 else sv
-    sv_series = pd.Series(sv_vec, index=X_num.columns)
+    assert MODEL is not None, "Modelo no cargado"
 
-    inc = sv_series[sv_series > 0].sort_values(ascending=False).head(top_n)
-    dec = sv_series[sv_series < 0].sort_values(ascending=True).head(top_n)
+    dm = xgb.DMatrix(X_num, feature_names=list(X_num.columns))
 
-    def pack(s: pd.Series) -> List[dict]:
+    # shape: (1, n_features + 1) donde la última columna es el bias/base
+    contrib = MODEL.predict(dm, pred_contribs=True)
+
+    shap_vals = contrib[0, :-1]  # excluye bias
+    s = pd.Series(shap_vals, index=X_num.columns)
+
+    inc = s[s > 0].sort_values(ascending=False).head(top_n)
+    dec = s[s < 0].sort_values(ascending=True).head(top_n)
+
+    def pack(sr: pd.Series) -> List[dict]:
         return [
             {"feature": k, "shap": float(v), "value": _safe_value(X_num.iloc[0][k])}
-            for k, v in s.items()
+            for k, v in sr.items()
         ]
 
     return {
@@ -177,7 +192,7 @@ def shap_top(explainer: Any, X_num: pd.DataFrame, top_n: int = 8) -> Dict[str, A
 # =========================
 @app.on_event("startup")
 def startup() -> None:
-    global DF_RAW, FEATURE_COLS, CAT_COLS, CAT_MAP, MODEL, EXPLAINER
+    global DF_RAW, FEATURE_COLS, CAT_COLS, CAT_MAP, MODEL
 
     # --- sanity checks
     if not DATA_FILE.exists():
@@ -202,15 +217,9 @@ def startup() -> None:
     MODEL = xgb.Booster()
     MODEL.load_model(str(MODEL_JSON))
 
-    # --- build SHAP explainer con background sample
-    # Encoding del background (mismo que prod)
-    bg = DF_RAW.sample(n=min(400, len(DF_RAW)), random_state=42)[FEATURE_COLS].copy()
-    bg_num = encode_like_training(bg)
-    EXPLAINER = shap.TreeExplainer(MODEL, bg_num)
-
     print(f"✅ Loaded dataset rows={len(DF_RAW):,} features={len(FEATURE_COLS):,} cat_cols={len(CAT_COLS):,}")
     print(f"✅ Loaded model: {MODEL_JSON.name}")
-    print("✅ SHAP explainer ready")
+    print("✅ XGBoost contrib explanations ready (pred_contribs=True)")
 
 
 # =========================
@@ -237,8 +246,8 @@ def app_page(request: Request):
 def score(req: ScoreRequest) -> Dict[str, Any]:
     if DF_RAW is None or FEATURE_COLS is None:
         raise HTTPException(status_code=500, detail="Dataset no cargado")
-    if MODEL is None or EXPLAINER is None:
-        raise HTTPException(status_code=500, detail="Modelo/SHAP no cargados")
+    if MODEL is None:
+        raise HTTPException(status_code=500, detail="Modelo no cargado")
 
     # 1) Buscar cliente base por ID
     row = DF_RAW.loc[DF_RAW[ID_COL] == req.sk_id_curr]
@@ -265,9 +274,9 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
     threshold = 0.60
     decision = "REJECT" if p_default >= threshold else "APPROVE"
 
-    # 5) SHAP (siempre)
+    # 5) Explicación tipo SHAP (siempre)
     try:
-        shap_block = shap_top(EXPLAINER, X_num, top_n=8)
+        shap_block = shap_top_xgb_contribs(X_num, top_n=8)
     except Exception as e:
         shap_block = {"enabled": True, "error": str(e), "top_risk_increasing": [], "top_risk_decreasing": []}
 

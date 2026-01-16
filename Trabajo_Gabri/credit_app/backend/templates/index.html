@@ -87,9 +87,85 @@
     .summary-k{color:var(--muted); font-weight:800; font-size:13px}
     .summary-v{font-weight:800}
 
+    /* =============================
+       RESULT UI (VISUAL + NIÑOS)
+       ============================= */
+    .result-hero{
+      display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:12px;
+    }
+    .result-box{
+      border:1px solid var(--border);
+      background:rgba(0,0,0,0.18);
+      border-radius:14px;
+      padding:14px;
+    }
+    .bigRow{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .bigTitle{font-size:12px; color:var(--muted); font-weight:800}
+    .bigValue{font-size:22px; font-weight:900}
+
+    .traffic{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      border:1px solid var(--border);
+      font-weight:900; letter-spacing:.3px;
+    }
+    .traffic.safe{border-color:var(--ok); background:rgba(34,197,94,.12)}
+    .traffic.care{border-color:var(--warn); background:rgba(245,158,11,.12)}
+    .traffic.danger{border-color:var(--err); background:rgba(239,68,68,.12)}
+
+    .meter{margin-top:10px}
+    .meterTop{display:flex; justify-content:space-between; gap:10px; align-items:baseline}
+    .meterBar{
+      height:14px; border-radius:999px; overflow:hidden;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.08);
+      margin-top:8px;
+    }
+    .meterFill{
+      height:100%;
+      width:0%;
+      background:linear-gradient(90deg, rgba(34,197,94,.8), rgba(245,158,11,.8), rgba(239,68,68,.8));
+      transition:width .25s ease
+    }
+    .ticks{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-top:6px}
+
+    .split{
+      display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-top:14px;
+    }
+    .listTitle{margin:0 0 10px; font-size:13px; color:var(--muted); font-weight:900; text-transform:uppercase; letter-spacing:.6px}
+
+    .fact{
+      padding:10px; border-radius:12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,0.03);
+      margin-bottom:10px;
+    }
+    .factTop{display:flex; justify-content:space-between; gap:10px; align-items:baseline}
+    .factName{font-weight:900}
+    .factMini{color:var(--muted); font-size:12px}
+    .factBar{height:10px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,0.08); border:1px solid var(--border); margin-top:8px}
+    .factFillBad{height:100%; width:0%; background:rgba(239,68,68,.75); transition:width .25s ease}
+    .factFillOk{height:100%; width:0%; background:rgba(34,197,94,.75); transition:width .25s ease}
+
+    details.json-details{margin-top:12px}
+    details.json-details summary{cursor:pointer; color:var(--muted); font-weight:800}
+    pre.json-pre{
+      margin:10px 0 0;
+      border:1px solid var(--border);
+      background:rgba(0,0,0,0.22);
+      border-radius:12px;
+      padding:12px;
+      overflow:auto;
+      max-height:340px;
+      font-size:12px;
+      color: var(--text);
+    }
+
     @media (max-width:720px){
       .choice-grid{grid-template-columns:1fr}
       .row, .summary-row{grid-template-columns:1fr}
+      .result-hero{grid-template-columns:1fr}
+      .split{grid-template-columns:1fr}
     }
   </style>
 </head>
@@ -97,7 +173,7 @@
 <body>
   <main class="container">
     <h1>Solicitud de crédito</h1>
-    <p class="subtitle">Frontend conectado a FastAPI (scoring existente + registro nuevo). SHAP siempre activo.</p>
+    <p class="subtitle">Frontend conectado a FastAPI (scoring existente + registro nuevo). Explicación visual para demo.</p>
 
     <div class="stepper" aria-label="Progreso">
       <span class="step" id="step-1">1) Selección</span>
@@ -242,7 +318,59 @@
         <button class="btn" id="btn-home" type="button">🏠 Inicio</button>
       </div>
 
-      <div class="status" id="status-result">Aquí verás la respuesta.</div>
+      <!-- Visual result (para niños) -->
+      <div class="result-hero">
+        <div class="result-box">
+          <div class="bigRow">
+            <div>
+              <div class="bigTitle">Decisión</div>
+              <div class="bigValue" id="ui-decision">—</div>
+            </div>
+            <div class="traffic care" id="ui-traffic">—</div>
+          </div>
+
+          <div class="meter">
+            <div class="meterTop">
+              <div class="bigTitle">Riesgo de NO pagar</div>
+              <div class="bigValue" id="ui-risk">—%</div>
+            </div>
+            <div class="meterBar"><div class="meterFill" id="ui-meter"></div></div>
+            <div class="ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
+            <div class="factMini" style="margin-top:8px;">
+              Umbral del sistema: <span id="ui-threshold">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-box">
+          <div class="bigTitle">Resumen fácil</div>
+          <div class="factMini" id="ui-summary" style="margin-top:8px; line-height:1.45;">
+            Aquí aparecerá una explicación simple.
+          </div>
+
+          <details class="json-details">
+            <summary>Mostrar JSON técnico (solo si hace falta)</summary>
+            <pre class="json-pre" id="ui-json">{}</pre>
+          </details>
+        </div>
+      </div>
+
+      <div class="split">
+        <div class="result-box">
+          <p class="listTitle">Cosas que SUBEN el riesgo 🔺</p>
+          <div id="ui-inc"></div>
+          <div class="factMini" id="ui-inc-empty" style="display:none;">No hay factores claros.</div>
+        </div>
+
+        <div class="result-box">
+          <p class="listTitle">Cosas que BAJAN el riesgo 🔻</p>
+          <div id="ui-dec"></div>
+          <div class="factMini" id="ui-dec-empty" style="display:none;">No hay factores claros.</div>
+        </div>
+      </div>
+
+      <!-- Status (errores / mensajes cortos) -->
+      <div class="status hidden" id="status-result"></div>
 
       <div class="actions">
         <button class="btn" id="btn-new-request" type="button">Nueva operación</button>
@@ -430,6 +558,119 @@
       return map[v] || v;
     }
 
+    // ===== UI "modo niños" =====
+    const FEATURE_LABELS = {
+      "AMT_INCOME_TOTAL": "Ingresos (cuánto dinero gana)",
+      "AMT_CREDIT": "Dinero pedido",
+      "EXT_SOURCE_SUM": "Puntuación externa (resumen)",
+      "EXTm_noRisk": "Puntuación externa (mejor = menos riesgo)",
+      "recent_late_ext": "Pagos recientes tarde",
+      "REGION_RATING_CLIENT_W_CITY": "Zona donde vive (rating)",
+      "OWN_CAR_AGE": "Edad del coche",
+      "NAME_EDUCATION_TYPE": "Nivel de estudios",
+      "FLAG_DOCUMENT_3": "Documento entregado",
+      "CODE_GENDER": "Género (codificado)",
+      "bureau_debt_to_credit_ratio": "Deuda vs crédito (historial)",
+      "combined_deterioration_score": "Señales de empeoramiento",
+      "prev_credit_down_payment_ratio": "Cuánto pagó de entrada antes",
+      "prev_yield_group_high": "Créditos anteriores (grupo alto)",
+      "goods_cr": "Relación compras/crédito",
+      "ext_source_payment_interaction": "Relación score externo + pagos",
+      "diversity_ext": "Variedad de scores externos"
+    };
+
+    function niceName(feature){
+      return FEATURE_LABELS[feature] || feature;
+    }
+
+    function setTraffic(pDefault){
+      const el = document.getElementById("ui-traffic");
+      el.classList.remove("safe","care","danger");
+      if (pDefault < 0.10){
+        el.classList.add("safe");
+        el.textContent = "✅ SEGURO";
+      } else if (pDefault < 0.30){
+        el.classList.add("care");
+        el.textContent = "⚠️ CUIDADO";
+      } else {
+        el.classList.add("danger");
+        el.textContent = "❌ PELIGRO";
+      }
+    }
+
+    function renderFactors(containerId, emptyId, items, bad){
+      const root = document.getElementById(containerId);
+      const empty = document.getElementById(emptyId);
+      root.innerHTML = "";
+      if (!items || items.length === 0){
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+
+      const maxAbs = Math.max(...items.map(x => Math.abs(x.shap))) || 1;
+
+      items.forEach(it => {
+        const w = Math.round((Math.abs(it.shap) / maxAbs) * 100);
+
+        const box = document.createElement("div");
+        box.className = "fact";
+        box.innerHTML = `
+          <div class="factTop">
+            <div class="factName">${niceName(it.feature)}</div>
+            <div class="factMini">Impacto: ${Number(it.shap).toFixed(3)}</div>
+          </div>
+          <div class="factMini">Valor: ${it.value === null ? "—" : it.value}</div>
+          <div class="factBar">
+            <div class="${bad ? "factFillBad" : "factFillOk"}" style="width:${w}%"></div>
+          </div>
+        `;
+        root.appendChild(box);
+      });
+    }
+
+    function buildKidSummary(pDefault, decision){
+      const pct = (pDefault * 100).toFixed(2);
+      if (decision === "APPROVE"){
+        if (pDefault < 0.10) return `Riesgo bajo (${pct}%). Parece un cliente bastante seguro.`;
+        if (pDefault < 0.30) return `Riesgo medio (${pct}%). Se puede aprobar, pero con cuidado.`;
+        return `Riesgo alto (${pct}%). Aunque salga “aprobado”, yo lo miraría con lupa.`;
+      } else {
+        if (pDefault < 0.30) return `Lo rechaza por la regla del umbral, aunque el riesgo no sea enorme (${pct}%).`;
+        return `Riesgo alto (${pct}%). El sistema lo rechaza para evitar impagos.`;
+      }
+    }
+
+    function renderResultUI(res){
+      // JSON técnico
+      document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
+
+      const pDefault = res?.proba?.default;
+      const decision = res?.decision;
+      const thr = res?.threshold;
+
+      if (typeof pDefault !== "number"){
+        document.getElementById("ui-decision").textContent = "—";
+        document.getElementById("ui-risk").textContent = "—%";
+        document.getElementById("ui-meter").style.width = "0%";
+        document.getElementById("ui-summary").textContent = "No se pudo calcular el riesgo.";
+        document.getElementById("ui-threshold").textContent = String(thr ?? "—");
+        return;
+      }
+
+      const pct = pDefault * 100;
+      document.getElementById("ui-risk").textContent = pct.toFixed(2) + "%";
+      document.getElementById("ui-meter").style.width = Math.max(0, Math.min(100, Math.round(pct))) + "%";
+      document.getElementById("ui-decision").textContent = (decision === "APPROVE") ? "APROBADO ✅" : "RECHAZADO ❌";
+      document.getElementById("ui-threshold").textContent = String(thr ?? "—");
+      setTraffic(pDefault);
+      document.getElementById("ui-summary").textContent = buildKidSummary(pDefault, decision);
+
+      renderFactors("ui-inc", "ui-inc-empty", res?.shap?.top_risk_increasing || [], true);
+      renderFactors("ui-dec", "ui-dec-empty", res?.shap?.top_risk_decreasing || [], false);
+    }
+
+    // ===== Wiring de pantallas =====
     btnExisting.addEventListener("click", () => {
       state.flow = "existing";
       state.editScreen = "existing";
@@ -456,7 +697,16 @@
       clearStatus(statusExisting);
       clearStatus(statusNew);
       clearStatus(statusConfirm);
-      setStatus(statusResult, null, "Aquí verás la respuesta.");
+      clearStatus(statusResult);
+      // limpia UI resultado
+      document.getElementById("ui-decision").textContent = "—";
+      document.getElementById("ui-risk").textContent = "—%";
+      document.getElementById("ui-meter").style.width = "0%";
+      document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
+      document.getElementById("ui-threshold").textContent = "—";
+      document.getElementById("ui-inc").innerHTML = "";
+      document.getElementById("ui-dec").innerHTML = "";
+      document.getElementById("ui-json").textContent = "{}";
       navigateTo("choice");
     });
 
@@ -511,30 +761,33 @@
 
     btnConfirmSend.addEventListener("click", async () => {
       clearStatus(statusConfirm);
+      clearStatus(statusResult);
       setLoading(btnConfirmSend, true, "Enviando...");
 
       try {
         if (state.flow === "existing"){
           const res = await postJSON(ENDPOINTS.score, state.payload);
-          const p = res?.proba?.default ?? null;
-
-          if (typeof p === "number"){
-            const pct = (p * 100).toFixed(2) + "%";
-            setStatus(statusResult, "ok",
-              `Resultado scoring\n\nProbabilidad de DEFAULT: ${pct}\n\nRespuesta completa:\n` + JSON.stringify(res, null, 2)
-            );
-          } else {
-            setStatus(statusResult, "ok", "Respuesta:\n" + JSON.stringify(res, null, 2));
-          }
+          // Render bonito (modo niños)
+          renderResultUI(res);
+          navigateTo("result");
         } else {
           const res = await postJSON(ENDPOINTS.newClient, state.payload);
+          // Para nuevo cliente, mostramos mensaje simple (sin gráfica)
           setStatus(statusResult, "ok",
-            `✅ Cliente registrado.\nID asignado: ${res.client_id ?? "(sin id)"}\nEstado: ${res.status ?? "OK"}\n\n` +
-            JSON.stringify(res, null, 2)
+            `✅ Cliente registrado.\nID asignado: ${res.client_id ?? "(sin id)"}\nEstado: ${res.status ?? "OK"}\n`
           );
+          // Y dejamos el JSON por si acaso
+          document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
+          // Dejamos valores en blanco en el dashboard (no aplica)
+          document.getElementById("ui-decision").textContent = "—";
+          document.getElementById("ui-risk").textContent = "—%";
+          document.getElementById("ui-meter").style.width = "0%";
+          document.getElementById("ui-summary").textContent = "Registro completado. Para ver riesgo, usa “Cliente existente”.";
+          document.getElementById("ui-threshold").textContent = "—";
+          document.getElementById("ui-inc").innerHTML = "";
+          document.getElementById("ui-dec").innerHTML = "";
+          navigateTo("result");
         }
-
-        navigateTo("result");
       } catch (err){
         setStatus(statusConfirm, "err", "Error:\n" + (err?.message || String(err)));
       } finally {
@@ -544,7 +797,6 @@
 
     // init
     navigateTo("choice");
-    setStatus(statusResult, null, "Aquí verás la respuesta.");
   </script>
 </body>
 </html>
