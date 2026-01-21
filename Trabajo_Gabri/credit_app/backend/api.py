@@ -28,13 +28,14 @@ import numpy as np
 import pandas as pd
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from pydantic import BaseModel, Field
 
 import xgboost as xgb
 
+from feature_labels import COLUMN_MAPPING_UI
 
 # =========================
 # Paths / Config
@@ -64,6 +65,13 @@ CreditType = Literal["revolving_loans", "cash_loans"]
 # =========================
 app = FastAPI(title="Credit Risk API", version="1.0")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+@app.get("/api/feature-labels", response_class=JSONResponse, tags=["frontend"])
+def feature_labels() -> Dict[str, str]:
+    """
+    Devuelve el diccionario técnico -> nombre legible para UI.
+    """
+    return COLUMN_MAPPING_UI
 
 
 # =========================

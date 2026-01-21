@@ -64,15 +64,51 @@
       padding:12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.03);
     }
     label{font-size:13px; color:var(--muted); font-weight:700}
-    input, select{
-      width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--border);
-      background:rgba(0,0,0,0.18); color:var(--text); outline:none; font-size:14px;
+  input, select{
+    width:100%;
+    padding:11px 12px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:rgba(0,0,0,0.18);
+    color:var(--text);
+    outline:none;
+    font-size:14px;
+  }
+
+  select{
+    appearance:none;
+    -webkit-appearance:none;
+    -moz-appearance:none;
+    padding-right:46px;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+      linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+      linear-gradient(to right, rgba(255,255,255,0.12), rgba(255,255,255,0.12));
+    background-position:
+      calc(100% - 18px) 50%,
+      calc(100% - 12px) 50%,
+      calc(100% - 40px) 50%;
+    background-size:6px 6px, 6px 6px, 1px 60%;
+    background-repeat:no-repeat;
+  }
+
+  select option{
+    background:#0f1626;
+    color:#e8eefc;
+  }
+
+  select:invalid{ color: rgba(169,180,204,0.85); }
+  select option[value=""]{ color: rgba(169,180,204,0.85); }
+
+    input:focus, select:focus{
+      border-color:rgba(120,160,255,0.55);
+      box-shadow:0 0 0 4px var(--focus);
     }
-    input:focus, select:focus{border-color:rgba(120,160,255,0.55); box-shadow:0 0 0 4px var(--focus)}
 
     .field-error{margin-top:6px; font-size:12px; color:rgba(255,255,255,0.85)}
     .field-error strong{color:rgba(239,68,68,0.95)}
     .hidden{display:none !important}
+
 
     .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap}
     .status{
@@ -224,10 +260,10 @@
           <div class="row">
             <label for="creditType">Tipo de crédito</label>
             <div>
-              <select id="creditType" name="creditType" required>
-                <option value="" selected disabled>Selecciona una opción</option>
-                <option value="revolving_loans">Revolving loans</option>
-                <option value="cash_loans">Cash loans</option>
+              <select id="creditType" name="creditType" required aria-required="true" aria-describedby="err-type">
+                <option value="" selected disabled>Selecciona un tipo de crédito</option>
+                <option value="revolving_loans">Crédito revolving</option>
+                <option value="cash_loans">Préstamo personal</option>
               </select>
               <div class="field-error hidden" id="err-type"><strong>Error:</strong> Selecciona un tipo de crédito.</div>
             </div>
@@ -384,8 +420,32 @@
 
     const ENDPOINTS = {
       score: "/api/score",
-      newClient: "/api/new-client"
+      newClient: "/api/new-client",
+      featureLabels: "/api/feature-labels"
     };
+
+    // =====================================
+// Feature labels (se cargan desde FastAPI)
+// =====================================
+let FEATURE_LABELS = {};
+
+async function loadFeatureLabels(){
+  try{
+    const resp = await fetch((API_BASE || "") + ENDPOINTS.featureLabels);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    FEATURE_LABELS = await resp.json();
+  } catch (e){
+    FEATURE_LABELS = {}; // fallback seguro
+  }
+}
+
+function niceFeatureName(raw){
+  if (!raw) return "—";
+  const k = String(raw).trim();
+  return FEATURE_LABELS[k] || k;
+}
+
+
 
     async function postJSON(path, payload){
       if (API_BASE === null){
@@ -513,12 +573,21 @@
 
       const sk = Number(document.getElementById("skIdCurr").value);
       const amt = Number(document.getElementById("amtCredit").value);
-      const type = document.getElementById("creditType").value;
+
+      const creditTypeEl = document.getElementById("creditType");
+      const type = creditTypeEl.value;
+
+      // reset accesibilidad
+      creditTypeEl.removeAttribute("aria-invalid");
 
       let ok = true;
       if (!Number.isFinite(sk) || sk <= 0){ errSk.classList.remove("hidden"); ok = false; }
       if (!Number.isFinite(amt) || amt <= 0){ errAmt.classList.remove("hidden"); ok = false; }
-      if (!type){ errType.classList.remove("hidden"); ok = false; }
+      if (!type){
+        errType.classList.remove("hidden");
+        creditTypeEl.setAttribute("aria-invalid", "true");
+        ok = false;
+      }
 
       return { ok, payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type } };
     }
@@ -552,42 +621,130 @@
 
     function creditTypeLabel(v){
       const map = {
-        revolving_loans: "Revolving loans",
-        cash_loans: "Cash loans"
+        revolving_loans: "Crédito revolving",
+        cash_loans: "Préstamo personal"
       };
       return map[v] || v;
     }
-    /**
- * Formatea un valor para UI:
- * - null/undefined -> "—"
- * - números -> hasta 3 decimales (sin ceros innecesarios)
- * - strings/otros -> se dejan tal cual
- */
-function formatValue(v){
-  if (v === null || v === undefined) return "—";
 
-  // Si ya viene como número
-  if (typeof v === "number" && Number.isFinite(v)) {
-    return trimZeros(v.toFixed(3));
+
+
+function formatFeatureValue(feature, value){
+  if (value === null || value === undefined) return "—";
+
+  const f = String(feature || "").trim();
+  const raw = value;
+
+  // Normaliza número si viene como string numérico (SIEMPRE aquí dentro)
+  let n = null;
+  if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
+  if (typeof raw === "string"){
+    const s = raw.trim();
+    if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
   }
 
-  // Si viene como string que representa número
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (s === "") return "—";
-    const n = Number(s);
-    if (Number.isFinite(n)) return trimZeros(n.toFixed(3));
-    return v; // no numérico -> lo dejo
+  // Contrato (si llega como 0/1 o string)
+  if (f === "NAME_CONTRACT_TYPE"){
+    const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
+    if (n !== null && mapNum[n] !== undefined) return mapNum[n];
+
+    if (typeof raw === "string"){
+      const s = raw.trim().toLowerCase();
+      if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
+      if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
+      return raw.replaceAll("_", " ");
+    }
+
+    return String(raw);
   }
 
-  // Otros tipos (boolean, objeto, etc.)
-  return String(v);
+  // Scores externos
+  if (f.startsWith("EXT_SOURCE_") && n !== null){
+    return `Nota: ${(n * 100).toFixed(1)} / 100`;
+  }
+
+  // Helpers
+  const asMoney = (x) => {
+    if (!Number.isFinite(x)) return String(raw);
+    return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
+  };
+  const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
+  const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
+
+  if (f === "CODE_GENDER"){
+    if (n === 0) return "Mujer";
+    if (n === 1) return "Hombre";
+    return String(raw);
+  }
+
+  const yesNoFeatures = new Set([
+    "FLAG_OWN_CAR","FLAG_OWN_REALTY","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE",
+    "FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
+    "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
+    "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
+  ]);
+  if (yesNoFeatures.has(f)){
+    return yesNo(n ?? raw);
+  }
+
+  if (f.startsWith("DAYS_") && n !== null){
+    const days = Math.abs(asInt(n));
+    if (n < 0) return `Hace ${days} días`;
+    return `${days} días`;
+  }
+
+  if (f === "OWN_CAR_AGE" && n !== null){
+    return `${asInt(n)} años`;
+  }
+
+  const moneyFeatures = new Set([
+    "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
+    "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
+  ]);
+  if (moneyFeatures.has(f) && n !== null){
+    return asMoney(n);
+  }
+
+  const percentFeatures = new Set([
+    "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
+    "inst_late_ratio_total","inst_late_ratio_1y","inst_partial_payment_ratio","inst_overpayment_ratio",
+    "inst_severe_late_ratio",
+    "historical_rejection_rate","prev_approval_rate_6m","prev_approval_rate_12m",
+    "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
+    "bureau_dpd_ratio"
+  ]);
+  if (percentFeatures.has(f) && n !== null){
+    if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
+    return `${n.toFixed(1)}%`;
+  }
+
+  const trendText = new Set([
+    "bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"
+  ]);
+  if (trendText.has(f) && n !== null){
+    const a = Math.abs(n);
+    if (a < 0.01) return "No cambia casi nada";
+    if (n > 0) return "Está subiendo rápido";
+    return "Está bajando";
+  }
+
+  const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
+  if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
+    if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
+      return `${asInt(n)} días`;
+    }
+  }
+
+  if (n !== null){
+    return trimZeros(n.toFixed(3));
+  }
+  return String(raw);
 }
 
-/** Quita ceros finales y punto sobrante: "12.340" -> "12.34", "5.000" -> "5" */
 function trimZeros(s){
   return s.replace(/\.?0+$/, "");
 }
+
 
     function setTraffic(pDefault){
       const el = document.getElementById("ui-traffic");
@@ -623,10 +780,10 @@ function trimZeros(s){
         box.className = "fact";
         box.innerHTML = `
           <div class="factTop">
-            <div class="factName">${it.feature ?? "—"}</div>
+            <div class="factName">${niceFeatureName(it.feature)}</div>
             <div class="factMini">Impacto: ${Number(it.shap).toFixed(3)}</div>
           </div>
-          <div class="factMini">Valor: ${formatValue(it.value)}</div>
+          <div class="factMini">Valor: ${formatFeatureValue(it.feature, it.value)}</div>
           <div class="factBar">
             <div class="${bad ? "factFillBad" : "factFillOk"}" style="width:${w}%"></div>
           </div>
@@ -802,7 +959,7 @@ function trimZeros(s){
     });
 
     // init
-    navigateTo("choice");
+      loadFeatureLabels().finally(() => navigateTo("choice"));
   </script>
 </body>
 </html>
