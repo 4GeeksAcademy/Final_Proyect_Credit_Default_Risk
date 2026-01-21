@@ -1,266 +1,426 @@
-import pandas as pd
-import shap
-import joblib
+"""
+Trabajo_Iago/functions.py
+
+Pipeline unificado para:
+- Cliente existente (search_user)
+- Nuevo cliente (new_user)
+- Predicción (predict)
+- Explicación SHAP (explain)
+- Formateo para frontend (format_shap_for_frontend)
+
+✅ Arreglos clave:
+- Ya NO usa rutas relativas frágiles ('../...') por defecto.
+- Expone get_model() y get_db() (cacheados).
+- Permite que TU api.py sobreescriba DATA_PATH y MODEL_PATH:
+    iago_fn.DATA_PATH = <Path a tu csv>
+    iago_fn.MODEL_PATH = <Path a tu pkl>
+    (y si quieres reset: iago_fn.get_model.cache_clear(); iago_fn.get_db.cache_clear())
+- Limpieza robusta: inf/nan, strings numéricos, categories, 'missing'
+- Compatible con CatBoost y XGBoost en predict() y explain()
+
+⚠️ Nota realista:
+- SHAP con CatBoost vía shap.TreeExplainer puede fallar según versión.
+  Si falla, devolvemos data vacía (y tu API lo captura).
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
 import numpy as np
-from catboost import Pool
-import random
+import pandas as pd
+import joblib
+
+# CatBoost/SHAP son opcionales en runtime si solo quieres predict sin explain
+try:
+    from catboost import Pool  # type: ignore
+except Exception:
+    Pool = None  # type: ignore
+
+try:
+    import shap  # type: ignore
+except Exception:
+    shap = None  # type: ignore
 
 
+# =============================================================================
+# Config (TU API puede sobreescribir estas variables)
+# =============================================================================
+BASE_DIR = Path(__file__).resolve().parent
 
-def search_user(sk_id, ammount, credit_type):
+# Por defecto: mismos paths que tu compañero solía usar, pero en Path absoluto
+DATA_PATH: Path = (BASE_DIR / ".." / "data" / "processed" / "home_credit_train_ready.csv").resolve()
+MODEL_PATH: Path = (BASE_DIR / ".." / "models" / "catboost_best_scores.pkl").resolve()
 
+ID_COL = "SK_ID_CURR"
+TARGET_COL = "TARGET"
+
+# -----------------------------------------------------------------------------
+# Helpers internos
+# -----------------------------------------------------------------------------
+def _is_cat_or_obj_dtype(s: pd.Series) -> bool:
+    return (pd.api.types.is_categorical_dtype(s.dtype) or s.dtype == "object")
+
+
+def _safe_num(x: Any) -> Optional[float]:
+    """Intenta convertir a número si viene como string numérico."""
+    if isinstance(x, (int, float, np.integer, np.floating)) and np.isfinite(x):
+        return float(x)
+    if isinstance(x, str):
+        s = x.strip()
+        if s == "":
+            return None
+        try:
+            v = float(s)
+            if np.isfinite(v):
+                return v
+        except Exception:
+            return None
+    return None
+
+
+def _clean_inf_nan(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.replace([np.inf, -np.inf], np.nan)
+    return df
+
+
+def _fill_missing_by_type(df: pd.DataFrame, cat_cols: Iterable[str]) -> pd.DataFrame:
     """
-    uses the training dataset as database to
-    find the user and i'ts features
-    process them to fit in the models as the
-    trining
-    returns the full user dataframe with
-    the parameters changed
+    - Columnas categóricas: 'missing'
+    - Numéricas: 0
     """
+    out = df.copy()
+    cat_cols = set(cat_cols)
+    for c in out.columns:
+        if c in cat_cols:
+            out[c] = out[c].astype("object").where(out[c].notna(), "missing")
+            out[c] = out[c].replace(0, "missing")
+        else:
+            out[c] = out[c].where(out[c].notna(), 0)
+    return out
 
-    db = pd.read_csv('../data/processed/home_credit_train_ready.csv')
 
-    user = db.loc[db['SK_ID_CURR'] == sk_id].copy()
+def _infer_cat_columns_from_db(db: pd.DataFrame) -> Tuple[Dict[str, Any], Dict[str, List[Any]]]:
+    """
+    Devuelve:
+      - original_dtypes: dtype objetivo por columna (sin ID/TARGET)
+      - cat_columns: categorías permitidas por columna categórica/obj
+    """
+    X = db.drop(columns=[c for c in [ID_COL, TARGET_COL] if c in db.columns], errors="ignore")
 
-    user['AMT_CREDIT'] = ammount
+    original_dtypes = X.dtypes.to_dict()
 
-    user['NAME_CONTRACT_TYPE'] = credit_type
+    cat_columns: Dict[str, List[Any]] = {}
+    for col in X.columns:
+        s = X[col]
+        if pd.api.types.is_categorical_dtype(s.dtype):
+            cats = list(s.cat.categories)
+            if "missing" not in cats:
+                cats = cats + ["missing"]
+            cat_columns[col] = cats
+        elif s.dtype == "object":
+            cats = list(pd.Series(s.dropna().unique()).astype(str).unique())
+            if "missing" not in cats:
+                cats = cats + ["missing"]
+            cat_columns[col] = cats
 
-    user.replace([np.inf, -np.inf], np.nan, inplace=True)
-    user.fillna(0, inplace=True)
+    return original_dtypes, cat_columns
 
-    for col in user.select_dtypes("object"):
-        user[col] = user[col].replace(0, 'missing')
 
-    for col in user.select_dtypes("object"):
-        user[col] = user[col].astype("category")
+def _apply_dtypes_and_categories(
+    user: pd.DataFrame,
+    original_dtypes: Dict[str, Any],
+    cat_columns: Dict[str, List[Any]],
+) -> pd.DataFrame:
+    """
+    Convierte el DF al contrato del entrenamiento:
+      - categóricas: pd.Categorical con categorías entrenadas + 'missing'
+      - numéricas: cast a dtype original si se puede
+    """
+    out = user.copy()
 
-    user = user.drop(columns=['TARGET', 'SK_ID_CURR'])
+    # 1) fill missing antes de casteos
+    out = _clean_inf_nan(out)
+    out = _fill_missing_by_type(out, cat_columns.keys())
 
-    return user
+    # 2) aplicar categorías/dtypes
+    for col, dtype in original_dtypes.items():
+        if col not in out.columns:
+            continue
+        if col in cat_columns:
+            out[col] = pd.Categorical(out[col].astype(str), categories=cat_columns[col])
+        else:
+            # si viene string numérico, intenta parsear
+            if out[col].dtype == "object":
+                v = _safe_num(out[col].iloc[0]) if len(out) else None
+                if v is not None:
+                    out[col] = v
+            try:
+                out[col] = out[col].astype(dtype)
+            except Exception:
+                # si no se puede, lo dejamos tal cual (mejor que romper)
+                pass
 
-def new_user(**kwargs):
+    return out
 
-    cols = [
- 'NAME_CONTRACT_TYPE',
- 'CODE_GENDER',
- 'FLAG_OWN_CAR',
- 'FLAG_OWN_REALTY',
- 'CNT_CHILDREN',
- 'AMT_INCOME_TOTAL',
- 'AMT_CREDIT',
- 'AMT_ANNUITY',
- 'AMT_GOODS_PRICE',
- 'NAME_TYPE_SUITE',
- 'NAME_INCOME_TYPE',
- 'NAME_EDUCATION_TYPE',
- 'NAME_FAMILY_STATUS',
- 'NAME_HOUSING_TYPE',
- 'REGION_POPULATION_RELATIVE',
- 'DAYS_BIRTH',
- 'DAYS_EMPLOYED',
- 'DAYS_REGISTRATION',
- 'DAYS_ID_PUBLISH',
- 'OWN_CAR_AGE',
- 'FLAG_MOBIL',
- 'FLAG_EMP_PHONE',
- 'FLAG_WORK_PHONE',
- 'FLAG_CONT_MOBILE',
- 'FLAG_PHONE',
- 'FLAG_EMAIL',
- 'OCCUPATION_TYPE',
- 'CNT_FAM_MEMBERS',
- 'REGION_RATING_CLIENT',
- 'REGION_RATING_CLIENT_W_CITY',
- 'WEEKDAY_APPR_PROCESS_START',
- 'HOUR_APPR_PROCESS_START',
- 'REG_REGION_NOT_LIVE_REGION',
- 'REG_REGION_NOT_WORK_REGION',
- 'LIVE_REGION_NOT_WORK_REGION',
- 'REG_CITY_NOT_LIVE_CITY',
- 'REG_CITY_NOT_WORK_CITY',
- 'LIVE_CITY_NOT_WORK_CITY',
- 'ORGANIZATION_TYPE',
- 'EXT_SOURCE_1',
- 'EXT_SOURCE_2',
- 'EXT_SOURCE_3',
- 'OBS_30_CNT_SOCIAL_CIRCLE',
- 'DEF_30_CNT_SOCIAL_CIRCLE',
- 'OBS_60_CNT_SOCIAL_CIRCLE',
- 'DEF_60_CNT_SOCIAL_CIRCLE',
- 'DAYS_LAST_PHONE_CHANGE',
- 'FLAG_DOCUMENT_2',
- 'FLAG_DOCUMENT_3',
- 'FLAG_DOCUMENT_4',
- 'FLAG_DOCUMENT_5',
- 'FLAG_DOCUMENT_6',
- 'FLAG_DOCUMENT_7',
- 'FLAG_DOCUMENT_8',
- 'FLAG_DOCUMENT_9',
- 'FLAG_DOCUMENT_10',
- 'FLAG_DOCUMENT_11',
- 'FLAG_DOCUMENT_12',
- 'FLAG_DOCUMENT_13',
- 'FLAG_DOCUMENT_14',
- 'FLAG_DOCUMENT_15',
- 'FLAG_DOCUMENT_16',
- 'FLAG_DOCUMENT_17',
- 'FLAG_DOCUMENT_18',
- 'FLAG_DOCUMENT_19',
- 'FLAG_DOCUMENT_20',
- 'FLAG_DOCUMENT_21',
- 'AMT_REQ_CREDIT_BUREAU_HOUR',
- 'AMT_REQ_CREDIT_BUREAU_DAY',
- 'AMT_REQ_CREDIT_BUREAU_WEEK',
- 'AMT_REQ_CREDIT_BUREAU_MON',
- 'AMT_REQ_CREDIT_BUREAU_QRT',
- 'AMT_REQ_CREDIT_BUREAU_YEAR']
 
-    db = pd.read_csv('../data/processed/home_credit_train_ready.csv')
+def _ensure_single_row(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    if len(df) > 1:
+        return df.iloc[[0]].copy()
+    return df.copy()
 
-    # Store original dtypes and categories
-    original_dtypes = db.drop(columns=['SK_ID_CURR', 'TARGET']).dtypes.to_dict()
-    cat_columns = {}
-    for col in db.columns:
-        if pd.api.types.is_categorical_dtype(db[col]):
-            cat_columns[col] = list(db[col].cat.categories) + ['missing']
-        elif db[col].dtype == 'object':
-            cat_columns[col] = list(db[col].dropna().unique()) + ['missing']
 
-    # Create empty DataFrame with provided values
-    user_data = {col: np.nan for col in original_dtypes.keys()}
+# =============================================================================
+# Caches: DB y Modelo
+# =============================================================================
+@lru_cache(maxsize=1)
+def get_db() -> pd.DataFrame:
+    if not Path(DATA_PATH).exists():
+        raise FileNotFoundError(f"Dataset no encontrado: {DATA_PATH}")
+    return pd.read_csv(str(DATA_PATH))
 
-    # Fill in provided values
+
+@lru_cache(maxsize=1)
+def get_model():
+    if not Path(MODEL_PATH).exists():
+        raise FileNotFoundError(f"Modelo no encontrado: {MODEL_PATH}")
+    return joblib.load(str(MODEL_PATH))
+
+
+# =============================================================================
+# Public API
+# =============================================================================
+def search_user(sk_id: int, ammount: float, credit_type: str) -> pd.DataFrame:
+    """
+    Cliente existente:
+    - Busca SK_ID_CURR en el dataset
+    - Sobrescribe AMT_CREDIT y NAME_CONTRACT_TYPE
+    - Limpia + prepara dtypes/categorías como entrenamiento
+    - Devuelve X listo (sin TARGET ni SK_ID_CURR)
+    """
+    db = get_db()
+
+    if ID_COL not in db.columns:
+        raise KeyError(f"El dataset no contiene la columna {ID_COL}")
+
+    user = db.loc[db[ID_COL] == sk_id].copy()
+    user = _ensure_single_row(user)
+    if user.empty:
+        return user
+
+    # Sobrescrituras solicitadas desde frontend
+    if "AMT_CREDIT" in user.columns:
+        user["AMT_CREDIT"] = ammount
+    else:
+        # si no existe, la creamos para no romper
+        user["AMT_CREDIT"] = ammount
+
+    if "NAME_CONTRACT_TYPE" in user.columns:
+        user["NAME_CONTRACT_TYPE"] = credit_type
+    else:
+        user["NAME_CONTRACT_TYPE"] = credit_type
+
+    original_dtypes, cat_columns = _infer_cat_columns_from_db(db)
+
+    # drop ID/TARGET antes de tipar (contrato de input)
+    X = user.drop(columns=[c for c in [ID_COL, TARGET_COL] if c in user.columns], errors="ignore")
+
+    X = _apply_dtypes_and_categories(X, original_dtypes, cat_columns)
+    return X.reset_index(drop=True)
+
+
+def new_user(**kwargs) -> pd.DataFrame:
+    """
+    Nuevo cliente:
+    - Construye un único registro con columnas EXACTAS del entrenamiento
+    - Rellena lo no dado con 0 / 'missing'
+    - Aplica categorías/dtypes según dataset de entrenamiento
+    """
+    db = get_db()
+    original_dtypes, cat_columns = _infer_cat_columns_from_db(db)
+
+    # Base con todas las columnas del entrenamiento (sin ID/TARGET)
+    user_data: Dict[str, Any] = {col: np.nan for col in original_dtypes.keys()}
+
+    # Rellenar con kwargs
     for key, value in kwargs.items():
         if key in user_data:
             user_data[key] = value
 
-    # Create DataFrame
     user = pd.DataFrame([user_data])
 
-    # Fill NaN values BEFORE converting to categorical
-    # Numeric columns get 0, object/categorical columns get 'missing'
-    for col in user.columns:
-        if col in cat_columns:
-            user[col] = user[col].fillna('missing')
-        else:
-            user[col] = user[col].fillna(0)
-
-    # Now convert to proper dtypes
-    for col, dtype in original_dtypes.items():
-        if col in cat_columns:
-            user[col] = pd.Categorical(user[col], categories=cat_columns[col])
-        else:
-            try:
-                user[col] = user[col].astype(dtype)
-            except (ValueError, TypeError):
-                pass
+    user = _apply_dtypes_and_categories(user, original_dtypes, cat_columns)
 
     return user.reset_index(drop=True)
 
-def predict(user):
-    """
-    Predicción compatible con XGBoost y CatBoost
-    Retorna probabilidades para 0 (No Default) y 1 (Default)
-    """
-    # Cargar el modelo
-    model = joblib.load('../models/catboost_best_scores.pkl')
 
-    # Detectar tipo de modelo y preparar datos
+def predict(user: pd.DataFrame) -> np.ndarray:
+    """
+    Predicción (CatBoost o XGBoost) -> predict_proba
+    Retorna shape (1,2): [P(no_default), P(default)]
+    """
+    model = get_model()
     model_type = type(model).__name__
 
-    if 'XGB' in model_type or 'Booster' in model_type:
-        # Para XGBoost: forzar CPU y limpiar métricas
+    X = _ensure_single_row(user)
+
+    # XGBoost: categorías -> codes
+    if ("XGB" in model_type) or ("Booster" in model_type):
+        X2 = X.copy()
+        cat_cols = X2.select_dtypes("category").columns.tolist()
+        for col in cat_cols:
+            X2[col] = X2[col].cat.codes
         try:
-            # Configurar el modelo para usar CPU y limpiar métricas problemáticas
-            model.set_params(device='cpu', eval_metric=None)
-        except:
+            # algunos wrappers aceptan set_params
+            model.set_params(device="cpu", eval_metric=None)
+        except Exception:
             try:
-                model.set_params(device='cpu')
-            except:
+                model.set_params(device="cpu")
+            except Exception:
                 pass
+        return np.asarray(model.predict_proba(X2))
+
+    # CatBoost
+    if "CatBoost" in model_type:
+        # CatBoost acepta directamente DataFrame con categóricas en muchos casos
+        return np.asarray(model.predict_proba(X))
+
+    # Fallback genérico
+    return np.asarray(model.predict_proba(X))
 
 
-
-        prediction = model.predict_proba(user)
-
-    elif 'CatBoost' in model_type:
-        # Para CatBoost: usar Pool con categorías
-        cat_features = user.select_dtypes('category').columns.tolist()
-        prediction = model.predict_proba(user)
-
-    else:
-        # Fallback genérico
-        prediction = model.predict_proba(user)
-
-    return prediction
-
-
-def explain(user_df: pd.DataFrame):
+def explain(user_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Explicación SHAP compatible con XGBoost y CatBoost
+    Devuelve (top_bad, top_good) con columnas: feature, value, shap
+    - top_bad: mayor shap (sube riesgo)
+    - top_good: menor shap (baja riesgo)
     """
+    if shap is None:
+        # si no hay shap instalado
+        empty = pd.DataFrame(columns=["feature", "value", "shap"])
+        return empty, empty
+
     try:
-        model = joblib.load('../models/catboost_best_scores.pkl')
+        model = get_model()
         model_type = type(model).__name__
+        X = _ensure_single_row(user_df)
 
-        # Preparar datos según el tipo de modelo
-        if 'XGB' in model_type or 'Booster' in model_type:
-            # XGBoost: forzar CPU, limpiar métricas y codificar categorías
+        if ("XGB" in model_type) or ("Booster" in model_type):
+            # XGBoost: categories -> codes
+            X2 = X.copy()
+            cat_cols = X2.select_dtypes("category").columns.tolist()
+            for col in cat_cols:
+                X2[col] = X2[col].cat.codes
+
             try:
-                model.set_params(device='cpu', eval_metric=None)
-            except:
+                model.set_params(device="cpu", eval_metric=None)
+            except Exception:
                 try:
-                    model.set_params(device='cpu')
-                except:
+                    model.set_params(device="cpu")
+                except Exception:
                     pass
 
-            user_encoded = user_df.copy()
-            cat_cols = user_encoded.select_dtypes('category').columns
-            for col in cat_cols:
-                user_encoded[col] = user_encoded[col].cat.codes
-
             explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(user_encoded)
+            shap_values = explainer.shap_values(X2)
 
-        elif 'CatBoost' in model_type:
-            # CatBoost: usar Pool
-            cat_features = user_df.select_dtypes('category').columns.tolist()
-            pool = Pool(user_df, cat_features=cat_features)
-
-            explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(pool)
+        elif "CatBoost" in model_type:
+            # CatBoost: ideal usar Pool si está disponible
+            if Pool is not None:
+                cat_features = X.select_dtypes("category").columns.tolist()
+                pool = Pool(X, cat_features=cat_features)
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(pool)
+            else:
+                explainer = shap.TreeExplainer(model)
+                shap_values = explainer.shap_values(X)
 
         else:
-            # Fallback
             explainer = shap.TreeExplainer(model)
-            shap_values = explainer.shap_values(user_df)
+            shap_values = explainer.shap_values(X)
 
-        # Procesar SHAP values (clasificación binaria)
+        # binario: list -> clase 1
         if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # Clase 1 (Default)
+            shap_values = shap_values[1]
 
-        shap_values = shap_values[0]  # Solo primer cliente
+        shap_row = np.asarray(shap_values)[0]
 
-        # Crear DataFrame de resultados
-        result = pd.DataFrame({
-            "feature": user_df.columns,
-            "value": user_df.iloc[0].values,
-            "shap": shap_values
-        })
+        result = pd.DataFrame(
+            {
+                "feature": list(X.columns),
+                "value": X.iloc[0].values,
+                "shap": shap_row,
+            }
+        )
 
-        # Limpiar NaN/Inf
-        result.replace([np.inf, -np.inf], 0, inplace=True)
-        result.fillna(0, inplace=True)
+        result = result.replace([np.inf, -np.inf], 0).fillna(0)
 
-        # Top 10 features que aumentan y reducen riesgo
-        top_bad = result.sort_values("shap", ascending=False).head(10)
-        top_good = result.sort_values("shap", ascending=True).head(10)
+        top_bad = result.sort_values("shap", ascending=False).head(10).reset_index(drop=True)
+        top_good = result.sort_values("shap", ascending=True).head(10).reset_index(drop=True)
 
         return top_bad, top_good
 
-    except Exception as e:
-        print(f"Error en explain: {e}")
-        # Retornar DataFrames vacíos en caso de error
+    except Exception:
         empty = pd.DataFrame(columns=["feature", "value", "shap"])
         return empty, empty
+
+
+def format_shap_for_frontend(
+    top_bad: pd.DataFrame,
+    top_good: pd.DataFrame,
+    *,
+    enabled: bool = True,
+) -> Dict[str, Any]:
+    """
+    Convierte (top_bad, top_good) al formato que tu frontend ya consume:
+    {
+      "enabled": true,
+      "top_risk_increasing": [{"feature":..., "shap":..., "value":...}, ...],
+      "top_risk_decreasing": [{"feature":..., "shap":..., "value":...}, ...]
+    }
+    """
+    def row_to_item(r: pd.Series) -> Dict[str, Any]:
+        v = r.get("value", None)
+        # JSON-friendly
+        try:
+            if pd.isna(v):
+                v = None
+        except Exception:
+            pass
+        if isinstance(v, (np.integer, np.floating)):
+            v = v.item()
+        if isinstance(v, (np.bool_)):
+            v = bool(v)
+
+        s = r.get("shap", 0.0)
+        if isinstance(s, (np.integer, np.floating)):
+            s = float(s.item())
+        else:
+            try:
+                s = float(s)
+            except Exception:
+                s = 0.0
+
+        return {
+            "feature": str(r.get("feature", "")),
+            "shap": s,
+            "value": v,
+        }
+
+    inc = []
+    dec = []
+
+    if top_bad is not None and not top_bad.empty:
+        inc = [row_to_item(top_bad.iloc[i]) for i in range(len(top_bad))]
+
+    if top_good is not None and not top_good.empty:
+        dec = [row_to_item(top_good.iloc[i]) for i in range(len(top_good))]
+
+    return {
+        "enabled": bool(enabled),
+        "top_risk_increasing": inc,
+        "top_risk_decreasing": dec,
+    }

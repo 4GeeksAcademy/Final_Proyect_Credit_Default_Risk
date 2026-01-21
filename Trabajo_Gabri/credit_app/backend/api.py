@@ -33,13 +33,32 @@ from pydantic import BaseModel, Field
 from feature_labels import COLUMN_MAPPING_UI
 
 # =========================
+# Helpers - Define early
+# =========================
+def _find_repo_root(start: Path) -> Path:
+    """
+    Busca hacia arriba un directorio que contenga 'Trabajo_Iago'.
+    Así no dependes de parents[x] exacto.
+    """
+    cur = start
+    for _ in range(8):
+        if (cur / "Trabajo_Iago").exists():
+            return cur
+        cur = cur.parent
+    # Fallback: asume 3 niveles arriba (backend -> credit_app -> Trabajo_Gabri -> repo root)
+    return start.parents[3]
+
+
+# =========================
 # Paths / Config
 # =========================
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
-ASSETS_DIR = BASE_DIR / "assets"
-MODELS_DIR = ASSETS_DIR / "models"
-DATA_DIR = ASSETS_DIR / "data"
+REPO_ROOT = _find_repo_root(BASE_DIR)
+MODELS_DIR = REPO_ROOT / "models"
+
+MODEL_PKL = MODELS_DIR / "catboost_best_scores.pkl"
+DATA_DIR = REPO_ROOT / "assets" / "data"
 
 DATA_FILE = DATA_DIR / "home_credit_train_ready.csv"
 MODEL_PKL = MODELS_DIR / "catboost_best_scores.pkl"
@@ -58,18 +77,6 @@ CreditType = Literal["revolving_loans", "cash_loans"]
 # =========================
 # Import Trabajo_Iago/functions.py (sin tocar su archivo)
 # =========================
-def _find_repo_root(start: Path) -> Path:
-    """
-    Busca hacia arriba un directorio que contenga 'Trabajo_Iago'.
-    Así no dependes de parents[x] exacto.
-    """
-    cur = start
-    for _ in range(8):
-        if (cur / "Trabajo_Iago").exists():
-            return cur
-        cur = cur.parent
-    # Fallback: asume 3 niveles arriba (backend -> credit_app -> Trabajo_Gabri -> repo root)
-    return start.parents[3]
 
 
 REPO_ROOT = _find_repo_root(BASE_DIR)
@@ -81,7 +88,7 @@ if not IAGO_DIR.exists():
 if str(IAGO_DIR) not in sys.path:
     sys.path.insert(0, str(IAGO_DIR))
 
-import functions as iago_fn  # noqa: E402
+from Trabajo_Iago import functions as iago_fn
 
 
 # Forzar que SU pipeline use TU dataset/modelo best_score (sin modificar functions.py)
