@@ -1,263 +1,266 @@
-"""
-function.py
-
-Funciones de negocio para scoring + explicación (SHAP) para Credit App.
-
-Objetivo:
-- Buscar cliente por SK_ID_CURR en el dataset "ready"
-- Sobrescribir inputs del frontend (AMT_CREDIT y NAME_CONTRACT_TYPE)
-- Limpiar NaN/Inf y preparar categóricas
-- Predecir probabilidad (predict_proba)
-- Calcular SHAP (TreeExplainer) para top factores
-
-Diseñado para integrarse con FastAPI y tu HTML:
-- El frontend llama POST /api/score
-- FastAPI usa: search_user() -> predict() -> explain()
-- FastAPI devuelve JSON con proba.default + shap.top_risk_increasing/decreasing
-"""
-
-from __future__ import annotations
-
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
-
-import joblib
-import numpy as np
 import pandas as pd
 import shap
+import joblib
+import numpy as np
 from catboost import Pool
+import random
 
 
-# ============================================================
-# Paths robustos (NO dependes del working directory)
-# Ajusta PROJECT_ROOT si tu repo está en otra forma.
-# ============================================================
-BASE_DIR = Path(__file__).resolve().parent
 
-# Caso típico: .../credit_app/backend/function.py
-# y data/models están en raíz del proyecto:
-PROJECT_ROOT = BASE_DIR.parent.parent
+def search_user(sk_id, ammount, credit_type):
 
-DATA_PATH = PROJECT_ROOT / "data" / "processed" / "home_credit_train_ready.csv"
-MODEL_PATH = PROJECT_ROOT / "models" / "catboost_new_dataset.pkl"
-
-
-# ============================================================
-# Cache global (se cargan 1 vez)
-# ============================================================
-_DB: pd.DataFrame | None = None
-_MODEL: Any | None = None
-
-
-def get_db() -> pd.DataFrame:
     """
-    Carga el dataset una sola vez en memoria (cache).
+    uses the training dataset as database to
+    find the user and i'ts features
+    process them to fit in the models as the
+    trining
+    returns the full user dataframe with
+    the parameters changed
     """
-    global _DB
-    if _DB is None:
-        if not DATA_PATH.exists():
-            raise FileNotFoundError(f"Dataset no encontrado en: {DATA_PATH}")
-        _DB = pd.read_csv(DATA_PATH)
-    return _DB
 
+    db = pd.read_csv('../data/processed/home_credit_train_ready.csv')
 
-def get_model() -> Any:
-    """
-    Carga el modelo una sola vez en memoria (cache).
-    """
-    global _MODEL
-    if _MODEL is None:
-        if not MODEL_PATH.exists():
-            raise FileNotFoundError(f"Modelo no encontrado en: {MODEL_PATH}")
-        _MODEL = joblib.load(MODEL_PATH)
-    return _MODEL
+    user = db.loc[db['SK_ID_CURR'] == sk_id].copy()
 
+    user['AMT_CREDIT'] = ammount
 
-def _safe_value(v: Any) -> Any:
-    """
-    Convierte valores pandas/numpy a tipos serializables en JSON.
-    - NaN -> None
-    - numpy scalar -> python scalar
-    """
-    try:
-        if pd.isna(v):
-            return None
-    except Exception:
-        pass
+    user['NAME_CONTRACT_TYPE'] = credit_type
 
-    if isinstance(v, (np.integer, np.floating)):
-        return v.item()
-
-    return v
-
-
-# ============================================================
-# Core functions (misma lógica que tu versión)
-# ============================================================
-def search_user(sk_id: int, ammount: float, credit_type: str) -> pd.DataFrame:
-    """
-    Busca un usuario por SK_ID_CURR en el dataset "ready" y construye
-    el vector de features (1 fila) sobrescribiendo los inputs del frontend.
-
-    Nota:
-    - Retorna DataFrame vacío si no existe el SK_ID_CURR.
-    - No lanza HTTP errors aquí: eso lo maneja FastAPI.
-    """
-    db = get_db()
-
-    user = db.loc[db["SK_ID_CURR"] == sk_id].copy()
-    if user.empty:
-        return user  # DataFrame vacío
-
-    # Sobrescribir inputs de la solicitud
-    user["AMT_CREDIT"] = float(ammount)
-    user["NAME_CONTRACT_TYPE"] = str(credit_type)
-
-    # Limpieza numérica
     user.replace([np.inf, -np.inf], np.nan, inplace=True)
     user.fillna(0, inplace=True)
 
-    # Preparación de categóricas (misma lógica que tu código)
-    obj_cols = user.select_dtypes("object").columns
-    for col in obj_cols:
-        user[col] = user[col].replace(0, "missing")
-    for col in obj_cols:
+    for col in user.select_dtypes("object"):
+        user[col] = user[col].replace(0, 'missing')
+
+    for col in user.select_dtypes("object"):
         user[col] = user[col].astype("category")
 
-    # Drop columnas no usadas por el modelo (si existen)
-    drop_cols = [c for c in ["TARGET", "SK_ID_CURR"] if c in user.columns]
-    user = user.drop(columns=drop_cols)
+    user = user.drop(columns=['TARGET', 'SK_ID_CURR'])
 
     return user
 
+def new_user(**kwargs):
 
-def predict(user: pd.DataFrame) -> np.ndarray:
-    """
-    Predicción compatible con XGBoost y CatBoost.
-    Retorna predict_proba shape (1, 2): [P(class0), P(class1)].
-    """
-    model = get_model()
-    model_type = type(model).__name__
+    cols = [
+ 'NAME_CONTRACT_TYPE',
+ 'CODE_GENDER',
+ 'FLAG_OWN_CAR',
+ 'FLAG_OWN_REALTY',
+ 'CNT_CHILDREN',
+ 'AMT_INCOME_TOTAL',
+ 'AMT_CREDIT',
+ 'AMT_ANNUITY',
+ 'AMT_GOODS_PRICE',
+ 'NAME_TYPE_SUITE',
+ 'NAME_INCOME_TYPE',
+ 'NAME_EDUCATION_TYPE',
+ 'NAME_FAMILY_STATUS',
+ 'NAME_HOUSING_TYPE',
+ 'REGION_POPULATION_RELATIVE',
+ 'DAYS_BIRTH',
+ 'DAYS_EMPLOYED',
+ 'DAYS_REGISTRATION',
+ 'DAYS_ID_PUBLISH',
+ 'OWN_CAR_AGE',
+ 'FLAG_MOBIL',
+ 'FLAG_EMP_PHONE',
+ 'FLAG_WORK_PHONE',
+ 'FLAG_CONT_MOBILE',
+ 'FLAG_PHONE',
+ 'FLAG_EMAIL',
+ 'OCCUPATION_TYPE',
+ 'CNT_FAM_MEMBERS',
+ 'REGION_RATING_CLIENT',
+ 'REGION_RATING_CLIENT_W_CITY',
+ 'WEEKDAY_APPR_PROCESS_START',
+ 'HOUR_APPR_PROCESS_START',
+ 'REG_REGION_NOT_LIVE_REGION',
+ 'REG_REGION_NOT_WORK_REGION',
+ 'LIVE_REGION_NOT_WORK_REGION',
+ 'REG_CITY_NOT_LIVE_CITY',
+ 'REG_CITY_NOT_WORK_CITY',
+ 'LIVE_CITY_NOT_WORK_CITY',
+ 'ORGANIZATION_TYPE',
+ 'EXT_SOURCE_1',
+ 'EXT_SOURCE_2',
+ 'EXT_SOURCE_3',
+ 'OBS_30_CNT_SOCIAL_CIRCLE',
+ 'DEF_30_CNT_SOCIAL_CIRCLE',
+ 'OBS_60_CNT_SOCIAL_CIRCLE',
+ 'DEF_60_CNT_SOCIAL_CIRCLE',
+ 'DAYS_LAST_PHONE_CHANGE',
+ 'FLAG_DOCUMENT_2',
+ 'FLAG_DOCUMENT_3',
+ 'FLAG_DOCUMENT_4',
+ 'FLAG_DOCUMENT_5',
+ 'FLAG_DOCUMENT_6',
+ 'FLAG_DOCUMENT_7',
+ 'FLAG_DOCUMENT_8',
+ 'FLAG_DOCUMENT_9',
+ 'FLAG_DOCUMENT_10',
+ 'FLAG_DOCUMENT_11',
+ 'FLAG_DOCUMENT_12',
+ 'FLAG_DOCUMENT_13',
+ 'FLAG_DOCUMENT_14',
+ 'FLAG_DOCUMENT_15',
+ 'FLAG_DOCUMENT_16',
+ 'FLAG_DOCUMENT_17',
+ 'FLAG_DOCUMENT_18',
+ 'FLAG_DOCUMENT_19',
+ 'FLAG_DOCUMENT_20',
+ 'FLAG_DOCUMENT_21',
+ 'AMT_REQ_CREDIT_BUREAU_HOUR',
+ 'AMT_REQ_CREDIT_BUREAU_DAY',
+ 'AMT_REQ_CREDIT_BUREAU_WEEK',
+ 'AMT_REQ_CREDIT_BUREAU_MON',
+ 'AMT_REQ_CREDIT_BUREAU_QRT',
+ 'AMT_REQ_CREDIT_BUREAU_YEAR']
 
-    # Intento de forzar CPU si fuera XGBoost (sin romper)
-    if "XGB" in model_type or "Booster" in model_type:
-        try:
-            model.set_params(device="cpu", eval_metric=None)
-        except Exception:
+    db = pd.read_csv('../data/processed/home_credit_train_ready.csv')
+
+    # Store original dtypes and categories
+    original_dtypes = db.drop(columns=['SK_ID_CURR', 'TARGET']).dtypes.to_dict()
+    cat_columns = {}
+    for col in db.columns:
+        if pd.api.types.is_categorical_dtype(db[col]):
+            cat_columns[col] = list(db[col].cat.categories) + ['missing']
+        elif db[col].dtype == 'object':
+            cat_columns[col] = list(db[col].dropna().unique()) + ['missing']
+
+    # Create empty DataFrame with provided values
+    user_data = {col: np.nan for col in original_dtypes.keys()}
+
+    # Fill in provided values
+    for key, value in kwargs.items():
+        if key in user_data:
+            user_data[key] = value
+
+    # Create DataFrame
+    user = pd.DataFrame([user_data])
+
+    # Fill NaN values BEFORE converting to categorical
+    # Numeric columns get 0, object/categorical columns get 'missing'
+    for col in user.columns:
+        if col in cat_columns:
+            user[col] = user[col].fillna('missing')
+        else:
+            user[col] = user[col].fillna(0)
+
+    # Now convert to proper dtypes
+    for col, dtype in original_dtypes.items():
+        if col in cat_columns:
+            user[col] = pd.Categorical(user[col], categories=cat_columns[col])
+        else:
             try:
-                model.set_params(device="cpu")
-            except Exception:
+                user[col] = user[col].astype(dtype)
+            except (ValueError, TypeError):
                 pass
 
-    # CatBoost puede predecir directamente con DataFrame (categorías tipo category)
-    # Tu código declaraba Pool pero no lo usaba en predict(); lo mantenemos igual.
-    pred = model.predict_proba(user)
-    return np.asarray(pred)
+    return user.reset_index(drop=True)
 
-
-def explain(user_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def predict(user):
     """
-    Explicación SHAP compatible con XGBoost y CatBoost.
+    Predicción compatible con XGBoost y CatBoost
+    Retorna probabilidades para 0 (No Default) y 1 (Default)
+    """
+    # Cargar el modelo
+    model = joblib.load('../models/catboost_best_scores.pkl')
 
-    Retorna:
-      top_bad  (shap alto positivo) -> aumenta riesgo
-      top_good (shap negativo)      -> baja riesgo
+    # Detectar tipo de modelo y preparar datos
+    model_type = type(model).__name__
+
+    if 'XGB' in model_type or 'Booster' in model_type:
+        # Para XGBoost: forzar CPU y limpiar métricas
+        try:
+            # Configurar el modelo para usar CPU y limpiar métricas problemáticas
+            model.set_params(device='cpu', eval_metric=None)
+        except:
+            try:
+                model.set_params(device='cpu')
+            except:
+                pass
+
+
+
+        prediction = model.predict_proba(user)
+
+    elif 'CatBoost' in model_type:
+        # Para CatBoost: usar Pool con categorías
+        cat_features = user.select_dtypes('category').columns.tolist()
+        prediction = model.predict_proba(user)
+
+    else:
+        # Fallback genérico
+        prediction = model.predict_proba(user)
+
+    return prediction
+
+
+def explain(user_df: pd.DataFrame):
+    """
+    Explicación SHAP compatible con XGBoost y CatBoost
     """
     try:
-        model = get_model()
+        model = joblib.load('../models/catboost_best_scores.pkl')
         model_type = type(model).__name__
 
-        # XGBoost: codificar category -> codes
-        if "XGB" in model_type or "Booster" in model_type:
+        # Preparar datos según el tipo de modelo
+        if 'XGB' in model_type or 'Booster' in model_type:
+            # XGBoost: forzar CPU, limpiar métricas y codificar categorías
             try:
-                model.set_params(device="cpu", eval_metric=None)
-            except Exception:
+                model.set_params(device='cpu', eval_metric=None)
+            except:
                 try:
-                    model.set_params(device="cpu")
-                except Exception:
+                    model.set_params(device='cpu')
+                except:
                     pass
 
             user_encoded = user_df.copy()
-            cat_cols = user_encoded.select_dtypes("category").columns
+            cat_cols = user_encoded.select_dtypes('category').columns
             for col in cat_cols:
                 user_encoded[col] = user_encoded[col].cat.codes
 
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(user_encoded)
 
-        # CatBoost: usar Pool con cat_features
-        elif "CatBoost" in model_type:
-            cat_features = user_df.select_dtypes("category").columns.tolist()
+        elif 'CatBoost' in model_type:
+            # CatBoost: usar Pool
+            cat_features = user_df.select_dtypes('category').columns.tolist()
             pool = Pool(user_df, cat_features=cat_features)
 
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(pool)
 
-        # Fallback genérico
         else:
+            # Fallback
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(user_df)
 
-        # Clasificación binaria: shap puede venir como list [clase0, clase1]
+        # Procesar SHAP values (clasificación binaria)
         if isinstance(shap_values, list):
-            shap_values = shap_values[1]  # clase 1 (Default)
+            shap_values = shap_values[1]  # Clase 1 (Default)
 
-        shap_row = shap_values[0]  # solo 1 cliente
+        shap_values = shap_values[0]  # Solo primer cliente
 
-        result = pd.DataFrame(
-            {
-                "feature": user_df.columns,
-                "value": user_df.iloc[0].values,
-                "shap": shap_row,
-            }
-        )
+        # Crear DataFrame de resultados
+        result = pd.DataFrame({
+            "feature": user_df.columns,
+            "value": user_df.iloc[0].values,
+            "shap": shap_values
+        })
 
+        # Limpiar NaN/Inf
         result.replace([np.inf, -np.inf], 0, inplace=True)
         result.fillna(0, inplace=True)
 
+        # Top 10 features que aumentan y reducen riesgo
         top_bad = result.sort_values("shap", ascending=False).head(10)
         top_good = result.sort_values("shap", ascending=True).head(10)
 
         return top_bad, top_good
 
     except Exception as e:
-        # En producción, loguearías con logging. Aquí lo dejamos claro.
-        print(f"[function.explain] Error: {e}")
+        print(f"Error en explain: {e}")
+        # Retornar DataFrames vacíos en caso de error
         empty = pd.DataFrame(columns=["feature", "value", "shap"])
         return empty, empty
-
-
-# ============================================================
-# Helper extra: formato listo para el HTML
-# (FastAPI puede llamar esto y devolverlo tal cual)
-# ============================================================
-def format_shap_for_frontend(top_bad: pd.DataFrame, top_good: pd.DataFrame) -> Dict[str, Any]:
-    """
-    Convierte los DataFrames de SHAP a la estructura exacta que tu HTML usa:
-
-    {
-      "enabled": True,
-      "top_risk_increasing": [{"feature","value","shap"}, ...],
-      "top_risk_decreasing": [{"feature","value","shap"}, ...]
-    }
-    """
-
-    def pack(df: pd.DataFrame) -> List[dict]:
-        if df is None or df.empty:
-            return []
-        out: List[dict] = []
-        for _, r in df.iterrows():
-            out.append(
-                {
-                    "feature": str(r["feature"]),
-                    "value": _safe_value(r["value"]),
-                    "shap": float(r["shap"]),
-                }
-            )
-        return out
-
-    return {
-        "enabled": True,
-        "top_risk_increasing": pack(top_bad),
-        "top_risk_decreasing": pack(top_good),
-    }
