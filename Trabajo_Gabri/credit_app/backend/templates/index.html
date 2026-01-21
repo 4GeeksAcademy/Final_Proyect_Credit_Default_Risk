@@ -5,6 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Solicitud de crédito</title>
   <style>
+      /* --- Risk status badges --- */
+  .risk-status{
+    display:flex;
+    gap:12px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+
+  .badge{
+    padding:6px 14px;
+    border-radius:999px;
+    font-weight:700;
+    font-size:0.85rem;
+    letter-spacing:.2px;
+    opacity:.25;
+    border:1px solid transparent;
+    user-select:none;
+  }
+
+  .badge.active{ opacity:1; }
+
+  .badge.safe{
+    background:rgba(34,197,94,.15);
+    color:#22c55e;
+    border-color:rgba(34,197,94,.4);
+  }
+
+  .badge.review{
+    background:rgba(234,179,8,.15);
+    color:#eab308;
+    border-color:rgba(234,179,8,.4);
+  }
+
+  .badge.danger{
+    background:rgba(239,68,68,.15);
+    color:#ef4444;
+    border-color:rgba(239,68,68,.4);
+  }
+
+  .risk-status-help{
+    margin-top:8px;
+    font-size:0.9rem;
+    color: rgba(232, 238, 252, .75);
+  }
     :root{
       --bg:#0b0f19; --card:#121a2a; --card2:#0f1626; --text:#e8eefc; --muted:#a9b4cc;
       --border:rgba(255,255,255,0.12); --focus:rgba(120,160,255,0.45);
@@ -35,8 +79,17 @@
       transition:transform .12s ease, border-color .12s ease;
     }
     .choice-card:hover{transform:translateY(-2px); border-color:rgba(255,255,255,0.22)}
-    .badge{justify-self:start; display:inline-flex; align-items:center; gap:8px;
-      padding:6px 10px; border-radius:999px; border:1px solid var(--border); color:var(--muted); font-size:12px}
+    .chip{
+      justify-self:start;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--muted);
+      font-size:12px;
+    }
     .choice-title{margin:0; font-size:18px; font-weight:800}
     .choice-desc{margin:0; color:var(--muted); font-size:14px; line-height:1.35}
 
@@ -220,13 +273,13 @@
 
     <section id="screen-choice" class="choice-grid" aria-label="Selección">
       <div class="choice-card" id="btn-existing" role="button" tabindex="0">
-        <span class="badge">👤 Cliente existente</span>
+        <span class="chip">👤 Cliente existente</span>
         <h2 class="choice-title">Cliente existente</h2>
         <p class="choice-desc">Calcula riesgo usando SK_ID_CURR.</p>
       </div>
 
       <div class="choice-card" id="btn-new" role="button" tabindex="0">
-        <span class="badge">✨ Nuevo cliente</span>
+        <span class="chip">✨ Nuevo cliente</span>
         <h2 class="choice-title">Nuevo cliente</h2>
         <p class="choice-desc">Registro de cliente.</p>
       </div>
@@ -359,22 +412,25 @@
         <div class="result-box">
           <div class="bigRow">
             <div>
-              <div class="bigTitle">Decisión</div>
-              <div class="bigValue" id="ui-decision">—</div>
-            </div>
-            <div class="traffic care" id="ui-traffic">—</div>
-          </div>
-
-          <div class="meter">
-            <div class="meterTop">
-              <div class="bigTitle">Riesgo de NO pagar</div>
+              <div class="bigTitle">Riesgo estimado</div>
               <div class="bigValue" id="ui-risk">—%</div>
             </div>
+          </div>
+          <!-- Estado (Seguro / Revisión / Peligro) -->
+          <div class="risk-status" id="riskStatusRow" aria-label="Estado del riesgo">
+            <span class="badge safe" id="badge-safe">SEGURO</span>
+            <span class="badge review" id="badge-review">REVISIÓN MANUAL</span>
+            <span class="badge danger" id="badge-danger">PELIGRO</span>
+          </div>
+
+          <!-- Texto explicativo (opcional, pero recomendable) -->
+          <div class="risk-status-help" id="riskStatusHelp">—</div>
+
+
+          <div class="meter">
+            <div class="bigTitle">Riesgo de NO pagar</div>
             <div class="meterBar"><div class="meterFill" id="ui-meter"></div></div>
             <div class="ticks"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div>
-            <div class="factMini" style="margin-top:8px;">
-              Umbral del sistema: <span id="ui-threshold">—</span>
-            </div>
           </div>
         </div>
 
@@ -424,28 +480,56 @@
       featureLabels: "/api/feature-labels"
     };
 
-    // =====================================
-// Feature labels (se cargan desde FastAPI)
-// =====================================
-let FEATURE_LABELS = {};
-
-async function loadFeatureLabels(){
-  try{
-    const resp = await fetch((API_BASE || "") + ENDPOINTS.featureLabels);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    FEATURE_LABELS = await resp.json();
-  } catch (e){
-    FEATURE_LABELS = {}; // fallback seguro
+      function getRiskStatus(riskPct) {
+    if (!Number.isFinite(riskPct)) {
+      return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
+    }
+    if (riskPct < 30) {
+      return { key: "safe", label: "SEGURO", help: "Perfil con bajo riesgo estimado." };
+    }
+    if (riskPct < 60) {
+      return { key: "review", label: "REVISIÓN MANUAL", help: "Riesgo medio. Se recomienda validación humana." };
+    }
+    return { key: "danger", label: "PELIGRO", help: "Riesgo alto de impago. Probable denegación." };
   }
-}
 
-function niceFeatureName(raw){
-  if (!raw) return "—";
-  const k = String(raw).trim();
-  return FEATURE_LABELS[k] || k;
-}
+  function renderRiskStatus(riskPct) {
+    const status = getRiskStatus(riskPct);
 
+    const keys = ["safe", "review", "danger"];
+    keys.forEach(k => {
+      const el = document.getElementById(`badge-${k}`);
+      if (!el) return;
+      el.classList.remove("active");
+    });
 
+    const active = document.getElementById(`badge-${status.key}`);
+    if (active) active.classList.add("active");
+
+    const help = document.getElementById("riskStatusHelp");
+    if (help) help.textContent = status.help;
+  }
+
+    // =====================================
+    // Feature labels (se cargan desde FastAPI)
+    // =====================================
+    let FEATURE_LABELS = {};
+
+    async function loadFeatureLabels(){
+      try{
+        const resp = await fetch((API_BASE || "") + ENDPOINTS.featureLabels);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        FEATURE_LABELS = await resp.json();
+      } catch (e){
+        FEATURE_LABELS = {}; // fallback seguro
+      }
+    }
+
+    function niceFeatureName(raw){
+      if (!raw) return "—";
+      const k = String(raw).trim();
+      return FEATURE_LABELS[k] || k;
+    }
 
     async function postJSON(path, payload){
       if (API_BASE === null){
@@ -627,138 +711,120 @@ function niceFeatureName(raw){
       return map[v] || v;
     }
 
+    function formatFeatureValue(feature, value){
+      if (value === null || value === undefined) return "—";
 
+      const f = String(feature || "").trim();
+      const raw = value;
 
-function formatFeatureValue(feature, value){
-  if (value === null || value === undefined) return "—";
-
-  const f = String(feature || "").trim();
-  const raw = value;
-
-  // Normaliza número si viene como string numérico (SIEMPRE aquí dentro)
-  let n = null;
-  if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
-  if (typeof raw === "string"){
-    const s = raw.trim();
-    if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
-  }
-
-  // Contrato (si llega como 0/1 o string)
-  if (f === "NAME_CONTRACT_TYPE"){
-    const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
-    if (n !== null && mapNum[n] !== undefined) return mapNum[n];
-
-    if (typeof raw === "string"){
-      const s = raw.trim().toLowerCase();
-      if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
-      if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
-      return raw.replaceAll("_", " ");
-    }
-
-    return String(raw);
-  }
-
-  // Scores externos
-  if (f.startsWith("EXT_SOURCE_") && n !== null){
-    return `Nota: ${(n * 100).toFixed(1)} / 100`;
-  }
-
-  // Helpers
-  const asMoney = (x) => {
-    if (!Number.isFinite(x)) return String(raw);
-    return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
-  };
-  const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
-  const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
-
-  if (f === "CODE_GENDER"){
-    if (n === 0) return "Mujer";
-    if (n === 1) return "Hombre";
-    return String(raw);
-  }
-
-  const yesNoFeatures = new Set([
-    "FLAG_OWN_CAR","FLAG_OWN_REALTY","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE",
-    "FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
-    "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
-    "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
-  ]);
-  if (yesNoFeatures.has(f)){
-    return yesNo(n ?? raw);
-  }
-
-  if (f.startsWith("DAYS_") && n !== null){
-    const days = Math.abs(asInt(n));
-    if (n < 0) return `Hace ${days} días`;
-    return `${days} días`;
-  }
-
-  if (f === "OWN_CAR_AGE" && n !== null){
-    return `${asInt(n)} años`;
-  }
-
-  const moneyFeatures = new Set([
-    "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
-    "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
-  ]);
-  if (moneyFeatures.has(f) && n !== null){
-    return asMoney(n);
-  }
-
-  const percentFeatures = new Set([
-    "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
-    "inst_late_ratio_total","inst_late_ratio_1y","inst_partial_payment_ratio","inst_overpayment_ratio",
-    "inst_severe_late_ratio",
-    "historical_rejection_rate","prev_approval_rate_6m","prev_approval_rate_12m",
-    "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
-    "bureau_dpd_ratio"
-  ]);
-  if (percentFeatures.has(f) && n !== null){
-    if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
-    return `${n.toFixed(1)}%`;
-  }
-
-  const trendText = new Set([
-    "bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"
-  ]);
-  if (trendText.has(f) && n !== null){
-    const a = Math.abs(n);
-    if (a < 0.01) return "No cambia casi nada";
-    if (n > 0) return "Está subiendo rápido";
-    return "Está bajando";
-  }
-
-  const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
-  if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
-    if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
-      return `${asInt(n)} días`;
-    }
-  }
-
-  if (n !== null){
-    return trimZeros(n.toFixed(3));
-  }
-  return String(raw);
-}
-
-function trimZeros(s){
-  return s.replace(/\.?0+$/, "");
-}
-
-
-    function setTraffic(pDefault){
-      const el = document.getElementById("ui-traffic");
-      el.classList.remove("safe","care","danger");
-      if (pDefault < 0.10){
-        el.classList.add("safe");
-        el.textContent = "✅ SEGURO";
-      } else if (pDefault < 0.30){
-        el.classList.add("care");
-        el.textContent = "⚠️ REVISIÓN MANUAL";
-      } else {
-        el.classList.add("danger");
-        el.textContent = "❌ PELIGRO";
+      // Normaliza número si viene como string numérico (SIEMPRE aquí dentro)
+      let n = null;
+      if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
+      if (typeof raw === "string"){
+        const s = raw.trim();
+        if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
       }
+
+      // Contrato (si llega como 0/1 o string)
+      if (f === "NAME_CONTRACT_TYPE"){
+        const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
+        if (n !== null && mapNum[n] !== undefined) return mapNum[n];
+
+        if (typeof raw === "string"){
+          const s = raw.trim().toLowerCase();
+          if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
+          if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
+          return raw.replaceAll("_", " ");
+        }
+
+        return String(raw);
+      }
+
+      // Scores externos
+      if (f.startsWith("EXT_SOURCE_") && n !== null){
+        return `Nota: ${(n * 100).toFixed(1)} / 100`;
+      }
+
+      // Helpers
+      const asMoney = (x) => {
+        if (!Number.isFinite(x)) return String(raw);
+        return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
+      };
+      const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
+      const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
+
+      if (f === "CODE_GENDER"){
+        if (n === 0) return "Mujer";
+        if (n === 1) return "Hombre";
+        return String(raw);
+      }
+
+      const yesNoFeatures = new Set([
+        "FLAG_OWN_CAR","FLAG_OWN_REALTY","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE",
+        "FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
+        "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
+        "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
+      ]);
+      if (yesNoFeatures.has(f)){
+        return yesNo(n ?? raw);
+      }
+
+      if (f.startsWith("DAYS_") && n !== null){
+        const days = Math.abs(asInt(n));
+        if (n < 0) return `Hace ${days} días`;
+        return `${days} días`;
+      }
+
+      if (f === "OWN_CAR_AGE" && n !== null){
+        return `${asInt(n)} años`;
+      }
+
+      const moneyFeatures = new Set([
+        "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
+        "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
+      ]);
+      if (moneyFeatures.has(f) && n !== null){
+        return asMoney(n);
+      }
+
+      const percentFeatures = new Set([
+        "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
+        "inst_late_ratio_total","inst_late_ratio_1y","inst_partial_payment_ratio","inst_overpayment_ratio",
+        "inst_severe_late_ratio",
+        "historical_rejection_rate","prev_approval_rate_6m","prev_approval_rate_12m",
+        "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
+        "bureau_dpd_ratio"
+      ]);
+      if (percentFeatures.has(f) && n !== null){
+        if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
+        return `${n.toFixed(1)}%`;
+      }
+
+      const trendText = new Set([
+        "bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"
+      ]);
+      if (trendText.has(f) && n !== null){
+        const a = Math.abs(n);
+        if (a < 0.01) return "No cambia casi nada";
+        if (n > 0) return "Está subiendo rápido";
+        return "Está bajando";
+      }
+
+      const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
+      if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
+        if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
+          return `${asInt(n)} días`;
+        }
+      }
+
+      if (n !== null){
+        return trimZeros(n.toFixed(3));
+      }
+      return String(raw);
+    }
+
+    function trimZeros(s){
+      return s.replace(/\.?0+$/, "");
     }
 
     function renderFactors(containerId, emptyId, items, bad){
@@ -792,47 +858,42 @@ function trimZeros(s){
       });
     }
 
-    function buildKidSummary(pDefault, decision){
+    function buildKidSummary(pDefault){
       const pct = (pDefault * 100).toFixed(2);
-      if (decision === "APPROVE"){
-        if (pDefault < 0.10) return `Riesgo bajo (${pct}%). Parece un cliente bastante seguro.`;
-        if (pDefault < 0.30) return `Riesgo medio (${pct}%). Se puede aprobar, pero con cuidado.`;
-        return `Riesgo alto (${pct}%). Aunque salga “aprobado”, yo lo miraría con lupa.`;
-      } else {
-        if (pDefault < 0.30) return `Lo rechaza por la regla del umbral, aunque el riesgo no sea enorme (${pct}%).`;
-        return `Riesgo alto (${pct}%). El sistema lo rechaza para evitar impagos.`;
-      }
+      if (pDefault < 0.10) return `Riesgo bajo (${pct}%).`;
+      if (pDefault < 0.30) return `Riesgo moderado (${pct}%).`;
+      if (pDefault < 0.60) return `Riesgo alto (${pct}%).`;
+      return `Riesgo muy alto (${pct}%).`;
     }
 
-    function renderResultUI(res){
-      // JSON técnico
-      document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
+      function renderResultUI(res){
+        // JSON técnico
+        document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
 
-      const pDefault = res?.proba?.default;
-      const decision = res?.decision;
-      const thr = res?.threshold;
+        const pDefault = res?.proba?.default;
 
-      if (typeof pDefault !== "number"){
-        document.getElementById("ui-decision").textContent = "—";
-        document.getElementById("ui-risk").textContent = "—%";
-        document.getElementById("ui-meter").style.width = "0%";
-        document.getElementById("ui-summary").textContent = "No se pudo calcular el riesgo.";
-        document.getElementById("ui-threshold").textContent = String(thr ?? "—");
-        return;
+        if (typeof pDefault !== "number"){
+          document.getElementById("ui-risk").textContent = "—%";
+          document.getElementById("ui-meter").style.width = "0%";
+          document.getElementById("ui-summary").textContent = "No se pudo calcular el riesgo.";
+          renderRiskStatus(NaN);
+          return;
+        }
+
+        const pct = pDefault * 100;
+        document.getElementById("ui-risk").textContent = pct.toFixed(2) + "%";
+        document.getElementById("ui-meter").style.width =
+          Math.max(0, Math.min(100, Math.round(pct))) + "%";
+
+        // ✅ estado (Seguro / Revisión / Peligro)
+        renderRiskStatus(pct);
+
+        // ✅ resumen
+        document.getElementById("ui-summary").textContent = buildKidSummary(pDefault);
+
+        renderFactors("ui-inc", "ui-inc-empty", res?.shap?.top_risk_increasing || [], true);
+        renderFactors("ui-dec", "ui-dec-empty", res?.shap?.top_risk_decreasing || [], false);
       }
-
-      const pct = pDefault * 100;
-      document.getElementById("ui-risk").textContent = pct.toFixed(2) + "%";
-      document.getElementById("ui-meter").style.width = Math.max(0, Math.min(100, Math.round(pct))) + "%";
-      document.getElementById("ui-decision").textContent = (decision === "APPROVE") ? "APROBADO ✅" : "RECHAZADO ❌";
-      document.getElementById("ui-threshold").textContent = String(thr ?? "—");
-      setTraffic(pDefault);
-      document.getElementById("ui-summary").textContent = buildKidSummary(pDefault, decision);
-      
-      renderFactors("ui-inc", "ui-inc-empty", res?.shap?.top_risk_increasing || [], true);
-      renderFactors("ui-dec", "ui-dec-empty", res?.shap?.top_risk_decreasing || [], false);
-    }
-
     // ===== Wiring de pantallas =====
     btnExisting.addEventListener("click", () => {
       state.flow = "existing";
@@ -861,17 +922,24 @@ function trimZeros(s){
       clearStatus(statusNew);
       clearStatus(statusConfirm);
       clearStatus(statusResult);
+
       // limpia UI resultado
-      document.getElementById("ui-decision").textContent = "—";
+      const uiDecision = document.getElementById("ui-decision");
+      if (uiDecision) uiDecision.textContent = "—";
+
       document.getElementById("ui-risk").textContent = "—%";
       document.getElementById("ui-meter").style.width = "0%";
       document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
-      document.getElementById("ui-threshold").textContent = "—";
       document.getElementById("ui-inc").innerHTML = "";
       document.getElementById("ui-dec").innerHTML = "";
       document.getElementById("ui-json").textContent = "{}";
+
+      // ✅ resetea el estado visual
+      renderRiskStatus(NaN);
+
       navigateTo("choice");
     });
+
 
     formExisting.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -942,11 +1010,14 @@ function trimZeros(s){
           // Y dejamos el JSON por si acaso
           document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
           // Dejamos valores en blanco en el dashboard (no aplica)
-          document.getElementById("ui-decision").textContent = "—";
+          const uiDecision2 = document.getElementById("ui-decision");
+          if (uiDecision2) uiDecision2.textContent = "—";
+          renderRiskStatus(NaN);
           document.getElementById("ui-risk").textContent = "—%";
           document.getElementById("ui-meter").style.width = "0%";
           document.getElementById("ui-summary").textContent = "Registro completado. Para ver riesgo, usa “Cliente existente”.";
-          document.getElementById("ui-threshold").textContent = "—";
+          const uiThreshold = document.getElementById("ui-threshold");
+          if (uiThreshold) uiThreshold.textContent = "—";
           document.getElementById("ui-inc").innerHTML = "";
           document.getElementById("ui-dec").innerHTML = "";
           navigateTo("result");

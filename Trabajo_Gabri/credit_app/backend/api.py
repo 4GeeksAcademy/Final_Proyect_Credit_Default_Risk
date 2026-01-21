@@ -1,28 +1,25 @@
 """
 api.py
-Backend FastAPI para Credit App (modelo real + "SHAP" siempre activo)
+Backend FastAPI para Credit App (CatBoost best_score vía Trabajo_Iago/functions.py)
 
 Qué hace:
-- Carga dataset "ready" (home_credit_train_ready.csv)
-- Carga XGBoost portable (xgb_model.json)
-- Aplica el MISMO encoding que en entrenamiento:
-    object -> category codes (con categorías fijadas desde el dataset)
+- Importa y reutiliza Trabajo_Iago/functions.py (pipeline del compañero)
+- Fuerza a usar:
+    assets/data/home_credit_train_ready.csv
+    assets/models/catboost_best_scores.pkl
+- Corrige errores típicos CatBoost:
+    1) Orden/selección de columnas (alineación exacta al modelo)
+    2) Categóricas mal marcadas (cat_features según el modelo)
 - POST /api/score: scoring por SK_ID_CURR + AMT_CREDIT + NAME_CONTRACT_TYPE
-- Explicación tipo SHAP SIEMPRE activa usando contribuciones nativas de XGBoost (pred_contribs=True)
-  -> evita el bug de compatibilidad SHAP/XGBoost que rompe el startup.
-- Sirve el frontend en GET /app
-
-Notas:
-- Este pipeline es consistente con train_xgb_portable.py (mismo encoding).
-- Para producción real, lo ideal es guardar un encoder explícito (pero esto funciona).
-- Las contribuciones (pred_contribs) suelen estar en el espacio del margen (log-odds).
-  Para ranking/signo (sube/baja riesgo) es válido y estable.
+- SHAP: usa iago_fn.explain() + format_shap_for_frontend() tal cual
+- Sirve frontend en GET /app
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal
 
 import numpy as np
 import pandas as pd
@@ -32,8 +29,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from pydantic import BaseModel, Field
-
-import xgboost as xgb
 
 from feature_labels import COLUMN_MAPPING_UI
 
@@ -47,7 +42,7 @@ MODELS_DIR = ASSETS_DIR / "models"
 DATA_DIR = ASSETS_DIR / "data"
 
 DATA_FILE = DATA_DIR / "home_credit_train_ready.csv"
-MODEL_JSON = MODELS_DIR / "xgb_model.json"
+MODEL_PKL = MODELS_DIR / "catboost_best_scores.pkl"
 
 ID_COL = "SK_ID_CURR"
 TARGET_COL = "TARGET"
@@ -61,38 +56,56 @@ CreditType = Literal["revolving_loans", "cash_loans"]
 
 
 # =========================
+# Import Trabajo_Iago/functions.py (sin tocar su archivo)
+# =========================
+def _find_repo_root(start: Path) -> Path:
+    """
+    Busca hacia arriba un directorio que contenga 'Trabajo_Iago'.
+    Así no dependes de parents[x] exacto.
+    """
+    cur = start
+    for _ in range(8):
+        if (cur / "Trabajo_Iago").exists():
+            return cur
+        cur = cur.parent
+    # Fallback: asume 3 niveles arriba (backend -> credit_app -> Trabajo_Gabri -> repo root)
+    return start.parents[3]
+
+
+REPO_ROOT = _find_repo_root(BASE_DIR)
+IAGO_DIR = REPO_ROOT / "Trabajo_Iago"
+
+if not IAGO_DIR.exists():
+    raise RuntimeError(f"No se encontró Trabajo_Iago en: {IAGO_DIR}")
+
+if str(IAGO_DIR) not in sys.path:
+    sys.path.insert(0, str(IAGO_DIR))
+
+import functions as iago_fn  # noqa: E402
+
+
+# Forzar que SU pipeline use TU dataset/modelo best_score (sin modificar functions.py)
+iago_fn.DATA_PATH = DATA_FILE
+iago_fn.MODEL_PATH = MODEL_PKL
+
+# Reset de cachés por si ya se cargó otro dataset/modelo antes
+if hasattr(iago_fn, "_DB"):
+    iago_fn._DB = None
+if hasattr(iago_fn, "_MODEL"):
+    iago_fn._MODEL = None
+
+
+# =========================
 # App / Templates
 # =========================
 app = FastAPI(title="Credit Risk API", version="1.0")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+
 @app.get("/api/feature-labels", response_class=JSONResponse, tags=["frontend"])
 def feature_labels() -> Dict[str, str]:
-    """
-    Devuelve el diccionario técnico -> nombre legible para UI.
-    """
+    """Devuelve el diccionario técnico -> nombre legible para UI."""
     return COLUMN_MAPPING_UI
-
-
-# =========================
-# Globals (loaded once)
-# =========================
-DF_RAW: Optional[pd.DataFrame] = None
-FEATURE_COLS: Optional[List[str]] = None
-
-CAT_COLS: Optional[List[str]] = None
-CAT_MAP: Optional[Dict[str, List[str]]] = None  # col -> categories list
-
-MODEL: Optional[xgb.Booster] = None
-
-
-# =========================
-# Schemas
-# =========================
-class ScoreRequest(BaseModel):
-    sk_id_curr: int = Field(..., gt=0)
-    amt_credit: float = Field(..., gt=0)
-    credit_type: CreditType
 
 
 # =========================
@@ -114,120 +127,76 @@ def _safe_value(v: Any) -> Any:
     return v
 
 
-def build_category_maps(df: pd.DataFrame, cat_cols: List[str]) -> Dict[str, List[str]]:
+def _get_cb_feature_names(model: Any) -> List[str]:
     """
-    Construye el diccionario de categorías por columna desde el dataset.
-    Esto fija el mapping a codes de forma estable (igual que en entrenamiento).
+    Devuelve el orden EXACTO de features del modelo CatBoost.
+    Sin esto, CatBoost puede interpretar columnas por posición y romper.
     """
-    mapping: Dict[str, List[str]] = {}
-    for c in cat_cols:
-        vals = df[c].astype("string")
-        cats = pd.Series(vals.dropna().unique()).sort_values().tolist()
-        mapping[c] = cats
-    return mapping
+    names = None
+
+    if hasattr(model, "feature_names_"):
+        try:
+            names = list(model.feature_names_)
+        except Exception:
+            names = None
+
+    if not names and hasattr(model, "get_feature_names"):
+        try:
+            names = list(model.get_feature_names())
+        except Exception:
+            names = None
+
+    if not names:
+        raise RuntimeError("El modelo CatBoost no expone feature names; no se puede alinear el input.")
+
+    names = [str(x) for x in names if str(x).strip() != ""]
+    if not names:
+        raise RuntimeError("feature_names del modelo está vacío.")
+    return names
 
 
-def encode_like_training(X: pd.DataFrame) -> pd.DataFrame:
+def _align_and_cast_for_catboost(user_df: pd.DataFrame, model: Any) -> pd.DataFrame:
     """
-    Aplica el MISMO encoding que el script de entrenamiento:
-      - Para cada columna categórica: category con categorías fijas -> codes int32
-      - NaNs -> -1 (igual que cat.codes)
+    - Alinea columnas al orden EXACTO del modelo
+      (evita: 'Revolving loans' -> float en feature_idx=0).
+    - Fuerza categóricas según el modelo
+      (evita: 'Categorical in model but marked different in the dataset').
+
+    Nota: NO modifica functions.py, sólo prepara el DF antes de llamar a predict/explain.
     """
-    assert CAT_COLS is not None and CAT_MAP is not None, "Encoder no inicializado"
-    X2 = X.copy()
+    feats = _get_cb_feature_names(model)
 
-    # Categóricas conocidas (mismo orden/categorías que el dataset)
-    for c in CAT_COLS:
-        if c not in X2.columns:
-            continue
-        cats = CAT_MAP[c]
-        X2[c] = pd.Categorical(X2[c].astype("string"), categories=cats).codes.astype("int32")
+    missing = [c for c in feats if c not in user_df.columns]
+    if missing:
+        raise RuntimeError(
+            f"Faltan columnas para el modelo: {missing[:20]}{'...' if len(missing) > 20 else ''}"
+        )
 
-    # Si quedara algún object por error, lo pasamos a category codes genérico
-    for c in X2.select_dtypes(include=["object"]).columns:
-        X2[c] = X2[c].astype("category").cat.codes.astype("int32")
+    X = user_df.loc[:, feats].copy()
 
-    return X2
+    cat_idx: List[int] = []
+    if hasattr(model, "get_cat_feature_indices"):
+        try:
+            cat_idx = list(model.get_cat_feature_indices())
+        except Exception:
+            cat_idx = []
 
+    for i in cat_idx:
+        if 0 <= i < X.shape[1]:
+            col = X.columns[i]
+            # CatBoost + dtype correcto (category) para que su explain() también funcione
+            X[col] = X[col].astype("string").astype("category")
 
-def predict_proba_default(X_num: pd.DataFrame) -> float:
-    """
-    Predice P(default=1) con Booster XGBoost (modelo JSON portable).
-    """
-    assert MODEL is not None, "Modelo no cargado"
-    dm = xgb.DMatrix(X_num, feature_names=list(X_num.columns))
-    pred = MODEL.predict(dm)
-    return float(pred[0])  # ya es probabilidad (binary:logistic)
-
-
-def shap_top_xgb_contribs(X_num: pd.DataFrame, top_n: int = 8) -> Dict[str, Any]:
-    """
-    Explicación tipo SHAP SIN librería shap:
-    usa contribuciones nativas de XGBoost -> pred_contribs=True.
-
-    Devuelve top features que aumentan/disminuyen riesgo.
-    Nota: contribuciones suelen estar en espacio de margen (log-odds),
-    pero el signo/magnitud relativa sirve para "sube/baja riesgo".
-    """
-    assert MODEL is not None, "Modelo no cargado"
-
-    dm = xgb.DMatrix(X_num, feature_names=list(X_num.columns))
-
-    # shape: (1, n_features + 1) donde la última columna es el bias/base
-    contrib = MODEL.predict(dm, pred_contribs=True)
-
-    shap_vals = contrib[0, :-1]  # excluye bias
-    s = pd.Series(shap_vals, index=X_num.columns)
-
-    inc = s[s > 0].sort_values(ascending=False).head(top_n)
-    dec = s[s < 0].sort_values(ascending=True).head(top_n)
-
-    def pack(sr: pd.Series) -> List[dict]:
-        return [
-            {"feature": k, "shap": float(v), "value": _safe_value(X_num.iloc[0][k])}
-            for k, v in sr.items()
-        ]
-
-    return {
-        "enabled": True,
-        "top_risk_increasing": pack(inc),
-        "top_risk_decreasing": pack(dec),
-    }
+    return X
 
 
 # =========================
-# Startup
+# Schemas
 # =========================
-@app.on_event("startup")
-def startup() -> None:
-    global DF_RAW, FEATURE_COLS, CAT_COLS, CAT_MAP, MODEL
-
-    # --- sanity checks
-    if not DATA_FILE.exists():
-        raise RuntimeError(f"Dataset no encontrado: {DATA_FILE}")
-    if not MODEL_JSON.exists():
-        raise RuntimeError(f"Modelo JSON no encontrado: {MODEL_JSON}")
-
-    # --- load data
-    DF_RAW = pd.read_csv(DATA_FILE)
-
-    if ID_COL not in DF_RAW.columns or TARGET_COL not in DF_RAW.columns:
-        raise RuntimeError("El dataset no tiene SK_ID_CURR/TARGET. No es 'ready'.")
-
-    # Features = todo menos ID y TARGET
-    FEATURE_COLS = [c for c in DF_RAW.columns if c not in (ID_COL, TARGET_COL)]
-
-    # Detectar categóricas (object)
-    CAT_COLS = DF_RAW[FEATURE_COLS].select_dtypes(include=["object"]).columns.tolist()
-    CAT_MAP = build_category_maps(DF_RAW[FEATURE_COLS], CAT_COLS)
-
-    # --- load model booster (portable)
-    MODEL = xgb.Booster()
-    MODEL.load_model(str(MODEL_JSON))
-
-    print(f"✅ Loaded dataset rows={len(DF_RAW):,} features={len(FEATURE_COLS):,} cat_cols={len(CAT_COLS):,}")
-    print(f"✅ Loaded model: {MODEL_JSON.name}")
-    print("✅ XGBoost contrib explanations ready (pred_contribs=True)")
+class ScoreRequest(BaseModel):
+    sk_id_curr: int = Field(..., gt=0)
+    amt_credit: float = Field(..., gt=0)
+    credit_type: CreditType
 
 
 # =========================
@@ -238,10 +207,13 @@ def health() -> Dict[str, Any]:
     return {
         "status": "ok",
         "dataset_exists": DATA_FILE.exists(),
-        "model_exists": MODEL_JSON.exists(),
-        "rows_loaded": 0 if DF_RAW is None else int(len(DF_RAW)),
-        "features_loaded": 0 if FEATURE_COLS is None else int(len(FEATURE_COLS)),
-        "cat_cols": 0 if CAT_COLS is None else int(len(CAT_COLS)),
+        "model_exists": MODEL_PKL.exists(),
+        "paths": {
+            "dataset": str(DATA_FILE),
+            "model": str(MODEL_PKL),
+            "iago_dir": str(IAGO_DIR),
+            "repo_root": str(REPO_ROOT),
+        },
     }
 
 
@@ -252,41 +224,62 @@ def app_page(request: Request):
 
 @app.post("/api/score", tags=["scoring"])
 def score(req: ScoreRequest) -> Dict[str, Any]:
-    if DF_RAW is None or FEATURE_COLS is None:
-        raise HTTPException(status_code=500, detail="Dataset no cargado")
-    if MODEL is None:
-        raise HTTPException(status_code=500, detail="Modelo no cargado")
+    # Validaciones rápidas de archivos (evita errores raros en runtime)
+    if not DATA_FILE.exists():
+        raise HTTPException(status_code=500, detail=f"Dataset no encontrado: {DATA_FILE}")
+    if not MODEL_PKL.exists():
+        raise HTTPException(status_code=500, detail=f"Modelo no encontrado: {MODEL_PKL}")
 
-    # 1) Buscar cliente base por ID
-    row = DF_RAW.loc[DF_RAW[ID_COL] == req.sk_id_curr]
-    if row.empty:
+    # 1) Cargar el modelo del compañero (ya parcheado a best_score)
+    try:
+        model = iago_fn.get_model()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error cargando modelo (Trabajo_Iago/functions.py): {str(e)}")
+
+    # 2) Mapear credit_type del frontend
+    contract = CONTRACT_TYPE_MAP[req.credit_type]
+
+    # 3) Construir el user con SU función (pipeline de entrenamiento)
+    try:
+        user = iago_fn.search_user(
+            sk_id=req.sk_id_curr,
+            ammount=req.amt_credit,
+            credit_type=contract,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en search_user(): {str(e)}")
+
+    if user is None or user.empty:
         raise HTTPException(status_code=404, detail=f"SK_ID_CURR {req.sk_id_curr} no existe en el dataset.")
 
-    # 2) Construir X (1 fila) y sobrescribir inputs del frontend
-    X = row.iloc[[0]][FEATURE_COLS].copy()
+    # 4) FIX CRÍTICO: alinear columnas y marcar categóricas según el modelo
+    try:
+        user = _align_and_cast_for_catboost(user, model)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Input preparation falló: {str(e)}")
 
-    # Sobrescribir AMT_CREDIT si existe
-    if "AMT_CREDIT" in X.columns:
-        X.loc[:, "AMT_CREDIT"] = float(req.amt_credit)
+    # 5) Predicción usando SU predict()
+    try:
+        pred = iago_fn.predict(user)  # shape (1,2)
+        p_default = float(np.asarray(pred)[0][1])
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Predict falló: {str(e)}")
 
-    # Sobrescribir tipo de crédito
-    contract = CONTRACT_TYPE_MAP[req.credit_type]
-    if "NAME_CONTRACT_TYPE" in X.columns:
-        X.loc[:, "NAME_CONTRACT_TYPE"] = contract
-
-    # 3) Encoding consistente
-    X_num = encode_like_training(X)
-
-    # 4) Predicción
-    p_default = predict_proba_default(X_num)
+    # 6) Decisión
     threshold = 0.60
     decision = "REJECT" if p_default >= threshold else "APPROVE"
 
-    # 5) Explicación tipo SHAP (siempre)
+    # 7) SHAP usando SU explain() + formatter
     try:
-        shap_block = shap_top_xgb_contribs(X_num, top_n=8)
+        top_bad, top_good = iago_fn.explain(user)
+        shap_block = iago_fn.format_shap_for_frontend(top_bad, top_good)
     except Exception as e:
-        shap_block = {"enabled": True, "error": str(e), "top_risk_increasing": [], "top_risk_decreasing": []}
+        shap_block = {
+            "enabled": True,
+            "error": str(e),
+            "top_risk_increasing": [],
+            "top_risk_decreasing": [],
+        }
 
     return {
         "sk_id_curr": req.sk_id_curr,
