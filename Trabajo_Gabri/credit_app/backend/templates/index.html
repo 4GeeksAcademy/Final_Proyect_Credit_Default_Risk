@@ -470,408 +470,433 @@
     </section>
   </main>
 
-  <script>
-    // "" = mismo host/puerto (recomendado). null = demo.
-    const API_BASE = "";
+    <script>
+      // "" = mismo host/puerto (recomendado). null = demo.
+      const API_BASE = "";
 
-    const ENDPOINTS = {
-      score: "/api/score",
-      newClient: "/api/new-client",
-      featureLabels: "/api/feature-labels"
-    };
+      const ENDPOINTS = {
+        score: "/api/score",
+        newClientRegister: "/api/new-client",
+        newClientScore: "/api/new-client/score",
+        featureLabels: "/api/feature-labels"
+      };
 
+      // ================================
+      // Risk badges
+      // ================================
       function getRiskStatus(riskPct) {
-    if (!Number.isFinite(riskPct)) {
-      return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
-    }
-    if (riskPct < 30) {
-      return { key: "safe", label: "SEGURO", help: "Perfil con bajo riesgo estimado." };
-    }
-    if (riskPct < 60) {
-      return { key: "review", label: "REVISIÓN MANUAL", help: "Riesgo medio. Se recomienda validación humana." };
-    }
-    return { key: "danger", label: "PELIGRO", help: "Riesgo alto de impago. Probable denegación." };
-  }
-
-  function renderRiskStatus(riskPct) {
-    const status = getRiskStatus(riskPct);
-
-    const keys = ["safe", "review", "danger"];
-    keys.forEach(k => {
-      const el = document.getElementById(`badge-${k}`);
-      if (!el) return;
-      el.classList.remove("active");
-    });
-
-    const active = document.getElementById(`badge-${status.key}`);
-    if (active) active.classList.add("active");
-
-    const help = document.getElementById("riskStatusHelp");
-    if (help) help.textContent = status.help;
-  }
-
-    // =====================================
-    // Feature labels (se cargan desde FastAPI)
-    // =====================================
-    let FEATURE_LABELS = {};
-
-    async function loadFeatureLabels(){
-      try{
-        const resp = await fetch((API_BASE || "") + ENDPOINTS.featureLabels);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        FEATURE_LABELS = await resp.json();
-      } catch (e){
-        FEATURE_LABELS = {}; // fallback seguro
-      }
-    }
-
-    function niceFeatureName(raw){
-      if (!raw) return "—";
-      const k = String(raw).trim();
-      return FEATURE_LABELS[k] || k;
-    }
-
-    async function postJSON(path, payload){
-      if (API_BASE === null){
-        await new Promise(r => setTimeout(r, 600));
-        return { demo: true, echo: payload };
-      }
-
-      const url = API_BASE + path;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const ct = resp.headers.get("content-type") || "";
-      const isJson = ct.includes("application/json");
-      const body = isJson ? await resp.json() : await resp.text();
-
-      if (!resp.ok){
-        const msg = isJson ? (body?.detail || body?.error || JSON.stringify(body)) : String(body);
-        throw new Error(msg || `HTTP ${resp.status}`);
-      }
-      return body;
-    }
-
-    const state = { flow: null, payload: null, editScreen: null };
-
-    const screens = {
-      choice: document.getElementById("screen-choice"),
-      existing: document.getElementById("screen-existing"),
-      newClient: document.getElementById("screen-new"),
-      confirm: document.getElementById("screen-confirm"),
-      result: document.getElementById("screen-result")
-    };
-
-    const steps = {
-      s1: document.getElementById("step-1"),
-      s2: document.getElementById("step-2"),
-      s3: document.getElementById("step-3"),
-      s4: document.getElementById("step-4")
-    };
-
-    const btnExisting = document.getElementById("btn-existing");
-    const btnNew = document.getElementById("btn-new");
-    const btnBackExisting = document.getElementById("btn-back-existing");
-    const btnBackNew = document.getElementById("btn-back-new");
-
-    const formExisting = document.getElementById("form-existing");
-    const formNew = document.getElementById("form-new");
-
-    const statusExisting = document.getElementById("status-existing");
-    const statusNew = document.getElementById("status-new");
-    const statusConfirm = document.getElementById("status-confirm");
-    const statusResult = document.getElementById("status-result");
-
-    const confirmTitle = document.getElementById("confirm-title");
-    const confirmSummary = document.getElementById("confirm-summary");
-
-    const btnConfirmEdit = document.getElementById("btn-confirm-edit");
-    const btnConfirmCancel = document.getElementById("btn-confirm-cancel");
-    const btnConfirmSend = document.getElementById("btn-confirm-send");
-
-    const btnHome = document.getElementById("btn-home");
-    const btnNewRequest = document.getElementById("btn-new-request");
-
-    const errSk = document.getElementById("err-sk");
-    const errAmt = document.getElementById("err-amt");
-    const errType = document.getElementById("err-type");
-
-    const errName = document.getElementById("err-name");
-    const errDni = document.getElementById("err-dni");
-    const errEmail = document.getElementById("err-email");
-    const errPhone = document.getElementById("err-phone");
-
-    function setStep(activeIdx){
-      [steps.s1, steps.s2, steps.s3, steps.s4].forEach((el, i) => el.classList.toggle("active", i === activeIdx));
-    }
-
-    function navigateTo(name){
-      Object.entries(screens).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
-      if (name === "choice") setStep(0);
-      if (name === "existing" || name === "newClient") setStep(1);
-      if (name === "confirm") setStep(2);
-      if (name === "result") setStep(3);
-    }
-
-    function setStatus(el, type, msg){
-      el.classList.remove("hidden","ok","err","warn");
-      if (type) el.classList.add(type);
-      el.textContent = msg;
-    }
-
-    function clearStatus(el){
-      el.classList.add("hidden");
-      el.textContent = "";
-      el.classList.remove("ok","err","warn");
-    }
-
-    function setLoading(button, on, text="Procesando..."){
-      if (!button) return;
-      if (on){
-        button.dataset.prevText = button.textContent;
-        button.textContent = text;
-        button.disabled = true;
-      } else {
-        button.textContent = button.dataset.prevText || button.textContent;
-        button.disabled = false;
-      }
-    }
-
-    function makeKeyboardClickable(el, handler){
-      el.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " "){
-          e.preventDefault();
-          handler();
+        if (!Number.isFinite(riskPct)) {
+          return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
         }
-      });
-    }
-
-    function validateExisting(){
-      clearStatus(statusExisting);
-      errSk.classList.add("hidden");
-      errAmt.classList.add("hidden");
-      errType.classList.add("hidden");
-
-      const sk = Number(document.getElementById("skIdCurr").value);
-      const amt = Number(document.getElementById("amtCredit").value);
-
-      const creditTypeEl = document.getElementById("creditType");
-      const type = creditTypeEl.value;
-
-      // reset accesibilidad
-      creditTypeEl.removeAttribute("aria-invalid");
-
-      let ok = true;
-      if (!Number.isFinite(sk) || sk <= 0){ errSk.classList.remove("hidden"); ok = false; }
-      if (!Number.isFinite(amt) || amt <= 0){ errAmt.classList.remove("hidden"); ok = false; }
-      if (!type){
-        errType.classList.remove("hidden");
-        creditTypeEl.setAttribute("aria-invalid", "true");
-        ok = false;
+        if (riskPct < 30) {
+          return { key: "safe", label: "SEGURO", help: "Perfil con bajo riesgo estimado." };
+        }
+        if (riskPct < 60) {
+          return { key: "review", label: "REVISIÓN MANUAL", help: "Riesgo medio. Se recomienda validación humana." };
+        }
+        return { key: "danger", label: "PELIGRO", help: "Riesgo alto de impago. Probable denegación." };
       }
 
-      return { ok, payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type } };
-    }
+      function renderRiskStatus(riskPct) {
+        const status = getRiskStatus(riskPct);
 
-    function validateNew(){
-      clearStatus(statusNew);
-      [errName, errDni, errEmail, errPhone].forEach(e => e.classList.add("hidden"));
+        ["safe", "review", "danger"].forEach(k => {
+          const el = document.getElementById(`badge-${k}`);
+          if (!el) return;
+          el.classList.remove("active");
+        });
 
-      const fullName = document.getElementById("fullName").value.trim();
-      const dni = document.getElementById("dni").value.trim();
-      const email = document.getElementById("email").value.trim();
-      const phone = document.getElementById("phone").value.trim();
+        const active = document.getElementById(`badge-${status.key}`);
+        if (active) active.classList.add("active");
 
-      let ok = true;
-      if (!fullName){ errName.classList.remove("hidden"); ok = false; }
-      if (!dni){ errDni.classList.remove("hidden"); ok = false; }
-      if (!email || !email.includes("@")){ errEmail.classList.remove("hidden"); ok = false; }
-      if (!phone){ errPhone.classList.remove("hidden"); ok = false; }
+        const help = document.getElementById("riskStatusHelp");
+        if (help) help.textContent = status.help;
+      }
 
-      return { ok, payload: { full_name: fullName, dni, email, phone } };
-    }
+      // =====================================
+      // Feature labels (desde FastAPI)
+      // =====================================
+      let FEATURE_LABELS = {};
 
-    function buildSummaryRows(rows){
-      return rows.map(r => `
-        <div class="summary-row">
-          <div class="summary-k">${r.k}</div>
-          <div class="summary-v">${r.v}</div>
-        </div>
-      `).join("");
-    }
+      async function loadFeatureLabels() {
+        try {
+          const resp = await fetch((API_BASE || "") + ENDPOINTS.featureLabels);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          FEATURE_LABELS = await resp.json();
+        } catch (e) {
+          FEATURE_LABELS = {};
+        }
+      }
 
-    function creditTypeLabel(v){
-      const map = {
-        revolving_loans: "Crédito revolving",
-        cash_loans: "Préstamo personal"
+      function niceFeatureName(raw) {
+        if (!raw) return "—";
+        const k = String(raw).trim();
+        return FEATURE_LABELS[k] || k;
+      }
+
+      // =====================================
+      // HTTP helper
+      // =====================================
+      async function postJSON(path, payload) {
+        if (API_BASE === null) {
+          await new Promise(r => setTimeout(r, 600));
+          return { demo: true, echo: payload };
+        }
+
+        const url = API_BASE + path;
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const ct = resp.headers.get("content-type") || "";
+        const isJson = ct.includes("application/json");
+        const body = isJson ? await resp.json() : await resp.text();
+
+        if (!resp.ok) {
+          const msg = isJson ? (body?.detail || body?.error || JSON.stringify(body)) : String(body);
+          throw new Error(msg || `HTTP ${resp.status}`);
+        }
+        return body;
+      }
+
+      // =====================================
+      // State (separa registro vs crédito)
+      // =====================================
+      const state = {
+        flow: null,          // "existing" | "new_register" | "new_credit"
+        editScreen: null,    // "existing" | "newClient"
+        register: null,      // { full_name, dni, email, phone }
+        credit: null,        // { amt_credit, credit_type }
+        virtualSk: null      // int (devuelto por /api/new-client)
       };
-      return map[v] || v;
-    }
 
-    function formatFeatureValue(feature, value){
-      if (value === null || value === undefined) return "—";
+      // =====================================
+      // DOM refs
+      // =====================================
+      const screens = {
+        choice: document.getElementById("screen-choice"),
+        existing: document.getElementById("screen-existing"),
+        newClient: document.getElementById("screen-new"),
+        confirm: document.getElementById("screen-confirm"),
+        result: document.getElementById("screen-result")
+      };
 
-      const f = String(feature || "").trim();
-      const raw = value;
+      const steps = {
+        s1: document.getElementById("step-1"),
+        s2: document.getElementById("step-2"),
+        s3: document.getElementById("step-3"),
+        s4: document.getElementById("step-4")
+      };
 
-      // Normaliza número si viene como string numérico (SIEMPRE aquí dentro)
-      let n = null;
-      if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
-      if (typeof raw === "string"){
-        const s = raw.trim();
-        if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
+      const btnExisting = document.getElementById("btn-existing");
+      const btnNew = document.getElementById("btn-new");
+      const btnBackExisting = document.getElementById("btn-back-existing");
+      const btnBackNew = document.getElementById("btn-back-new");
+
+      const formExisting = document.getElementById("form-existing");
+      const formNew = document.getElementById("form-new");
+
+      const statusExisting = document.getElementById("status-existing");
+      const statusNew = document.getElementById("status-new");
+      const statusConfirm = document.getElementById("status-confirm");
+      const statusResult = document.getElementById("status-result");
+
+      const confirmTitle = document.getElementById("confirm-title");
+      const confirmSummary = document.getElementById("confirm-summary");
+
+      const btnConfirmEdit = document.getElementById("btn-confirm-edit");
+      const btnConfirmCancel = document.getElementById("btn-confirm-cancel");
+      const btnConfirmSend = document.getElementById("btn-confirm-send");
+
+      const btnHome = document.getElementById("btn-home");
+      const btnNewRequest = document.getElementById("btn-new-request");
+
+      const errSk = document.getElementById("err-sk");
+      const errAmt = document.getElementById("err-amt");
+      const errType = document.getElementById("err-type");
+
+      const errName = document.getElementById("err-name");
+      const errDni = document.getElementById("err-dni");
+      const errEmail = document.getElementById("err-email");
+      const errPhone = document.getElementById("err-phone");
+
+      // Row del SK para ocultar/mostrar
+      const skInput = document.getElementById("skIdCurr");
+      const skRow = skInput ? skInput.closest(".row") : null;
+
+      // =====================================
+      // UI helpers
+      // =====================================
+      function setStep(activeIdx) {
+        [steps.s1, steps.s2, steps.s3, steps.s4].forEach((el, i) =>
+          el.classList.toggle("active", i === activeIdx)
+        );
       }
 
-      // Contrato (si llega como 0/1 o string)
-      if (f === "NAME_CONTRACT_TYPE"){
-        const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
-        if (n !== null && mapNum[n] !== undefined) return mapNum[n];
+      function navigateTo(name) {
+        Object.entries(screens).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
+        if (name === "choice") setStep(0);
+        if (name === "existing" || name === "newClient") setStep(1);
+        if (name === "confirm") setStep(2);
+        if (name === "result") setStep(3);
+      }
 
+      function setStatus(el, type, msg) {
+        el.classList.remove("hidden", "ok", "err", "warn");
+        if (type) el.classList.add(type);
+        el.textContent = msg;
+      }
+
+      function clearStatus(el) {
+        el.classList.add("hidden");
+        el.textContent = "";
+        el.classList.remove("ok", "err", "warn");
+      }
+
+      function setLoading(button, on, text = "Procesando...") {
+        if (!button) return;
+        if (on) {
+          button.dataset.prevText = button.textContent;
+          button.textContent = text;
+          button.disabled = true;
+        } else {
+          button.textContent = button.dataset.prevText || button.textContent;
+          button.disabled = false;
+        }
+      }
+
+      function makeKeyboardClickable(el, handler) {
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handler();
+          }
+        });
+      }
+
+      function buildSummaryRows(rows) {
+        return rows.map(r => `
+          <div class="summary-row">
+            <div class="summary-k">${r.k}</div>
+            <div class="summary-v">${r.v}</div>
+          </div>
+        `).join("");
+      }
+
+      function creditTypeLabel(v) {
+        const map = { revolving_loans: "Crédito revolving", cash_loans: "Préstamo personal" };
+        return map[v] || v;
+      }
+
+      // =====================================
+      // Validations
+      // =====================================
+      function validateExisting({ requireSk = true } = {}) {
+        clearStatus(statusExisting);
+        errSk.classList.add("hidden");
+        errAmt.classList.add("hidden");
+        errType.classList.add("hidden");
+
+        const sk = Number(document.getElementById("skIdCurr").value);
+        const amt = Number(document.getElementById("amtCredit").value);
+
+        const creditTypeEl = document.getElementById("creditType");
+        const type = creditTypeEl.value;
+        creditTypeEl.removeAttribute("aria-invalid");
+
+        let ok = true;
+
+        if (requireSk) {
+          if (!Number.isFinite(sk) || sk <= 0) { errSk.classList.remove("hidden"); ok = false; }
+        }
+        if (!Number.isFinite(amt) || amt <= 0) { errAmt.classList.remove("hidden"); ok = false; }
+        if (!type) {
+          errType.classList.remove("hidden");
+          creditTypeEl.setAttribute("aria-invalid", "true");
+          ok = false;
+        }
+
+        return {
+          ok,
+          payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type }
+        };
+      }
+
+      function validateNew() {
+        clearStatus(statusNew);
+
+        errName.classList.add("hidden");
+        errDni.classList.add("hidden");
+        errEmail.classList.add("hidden");
+        errPhone.classList.add("hidden");
+
+        const fullName = String(document.getElementById("fullName").value || "").trim();
+        const dni = String(document.getElementById("dni").value || "").trim();
+        const email = String(document.getElementById("email").value || "").trim();
+        const phone = String(document.getElementById("phone").value || "").trim();
+
+        let ok = true;
+        if (!fullName) { errName.classList.remove("hidden"); ok = false; }
+        if (!dni) { errDni.classList.remove("hidden"); ok = false; }
+        if (!email || !email.includes("@")) { errEmail.classList.remove("hidden"); ok = false; }
+        if (!phone) { errPhone.classList.remove("hidden"); ok = false; }
+
+        return { ok, payload: { full_name: fullName, dni, email, phone } };
+      }
+
+      // =====================================
+      // Result rendering (dejas lo tuyo)
+      // =====================================
+      function trimZeros(s){ return s.replace(/\.?0+$/, ""); }
+
+      function formatFeatureValue(feature, value){
+        if (value === null || value === undefined) return "—";
+
+        const f = String(feature || "").trim();
+        const raw = value;
+
+        let n = null;
+        if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
         if (typeof raw === "string"){
-          const s = raw.trim().toLowerCase();
-          if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
-          if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
-          return raw.replaceAll("_", " ");
+          const s = raw.trim();
+          if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
         }
 
+        if (f === "NAME_CONTRACT_TYPE"){
+          const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
+          if (n !== null && mapNum[n] !== undefined) return mapNum[n];
+
+          if (typeof raw === "string"){
+            const s = raw.trim().toLowerCase();
+            if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
+            if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
+            return raw.replaceAll("_", " ");
+          }
+          return String(raw);
+        }
+
+        if (f.startsWith("EXT_SOURCE_") && n !== null){
+          return `Nota: ${(n * 100).toFixed(1)} / 100`;
+        }
+
+        const asMoney = (x) => {
+          if (!Number.isFinite(x)) return String(raw);
+          return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
+        };
+        const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
+        const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
+
+        if (f === "CODE_GENDER"){
+          if (n === 0) return "Mujer";
+          if (n === 1) return "Hombre";
+          return String(raw);
+        }
+
+        const yesNoFeatures = new Set([
+          "FLAG_OWN_CAR","FLAG_OWN_REALTY","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE",
+          "FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
+          "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
+          "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
+        ]);
+        if (yesNoFeatures.has(f)){
+          return yesNo(n ?? raw);
+        }
+
+        if (f.startsWith("DAYS_") && n !== null){
+          const days = Math.abs(asInt(n));
+          if (n < 0) return `Hace ${days} días`;
+          return `${days} días`;
+        }
+
+        if (f === "OWN_CAR_AGE" && n !== null){
+          return `${asInt(n)} años`;
+        }
+
+        const moneyFeatures = new Set([
+          "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
+          "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
+        ]);
+        if (moneyFeatures.has(f) && n !== null){
+          return asMoney(n);
+        }
+
+        const percentFeatures = new Set([
+          "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
+          "inst_late_ratio_total","inst_late_ratio_1y","inst_partial_payment_ratio","inst_overpayment_ratio",
+          "inst_severe_late_ratio",
+          "historical_rejection_rate","prev_approval_rate_6m","prev_approval_rate_12m",
+          "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
+          "bureau_dpd_ratio"
+        ]);
+        if (percentFeatures.has(f) && n !== null){
+          if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
+          return `${n.toFixed(1)}%`;
+        }
+
+        const trendText = new Set(["bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"]);
+        if (trendText.has(f) && n !== null){
+          const a = Math.abs(n);
+          if (a < 0.01) return "No cambia casi nada";
+          if (n > 0) return "Está subiendo rápido";
+          return "Está bajando";
+        }
+
+        const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
+        if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
+          if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
+            return `${asInt(n)} días`;
+          }
+        }
+
+        if (n !== null) return trimZeros(n.toFixed(3));
         return String(raw);
       }
 
-      // Scores externos
-      if (f.startsWith("EXT_SOURCE_") && n !== null){
-        return `Nota: ${(n * 100).toFixed(1)} / 100`;
-      }
-
-      // Helpers
-      const asMoney = (x) => {
-        if (!Number.isFinite(x)) return String(raw);
-        return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
-      };
-      const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
-      const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
-
-      if (f === "CODE_GENDER"){
-        if (n === 0) return "Mujer";
-        if (n === 1) return "Hombre";
-        return String(raw);
-      }
-
-      const yesNoFeatures = new Set([
-        "FLAG_OWN_CAR","FLAG_OWN_REALTY","FLAG_MOBIL","FLAG_EMP_PHONE","FLAG_WORK_PHONE",
-        "FLAG_CONT_MOBILE","FLAG_PHONE","FLAG_EMAIL",
-        "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
-        "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
-      ]);
-      if (yesNoFeatures.has(f)){
-        return yesNo(n ?? raw);
-      }
-
-      if (f.startsWith("DAYS_") && n !== null){
-        const days = Math.abs(asInt(n));
-        if (n < 0) return `Hace ${days} días`;
-        return `${days} días`;
-      }
-
-      if (f === "OWN_CAR_AGE" && n !== null){
-        return `${asInt(n)} años`;
-      }
-
-      const moneyFeatures = new Set([
-        "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
-        "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
-      ]);
-      if (moneyFeatures.has(f) && n !== null){
-        return asMoney(n);
-      }
-
-      const percentFeatures = new Set([
-        "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
-        "inst_late_ratio_total","inst_late_ratio_1y","inst_partial_payment_ratio","inst_overpayment_ratio",
-        "inst_severe_late_ratio",
-        "historical_rejection_rate","prev_approval_rate_6m","prev_approval_rate_12m",
-        "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
-        "bureau_dpd_ratio"
-      ]);
-      if (percentFeatures.has(f) && n !== null){
-        if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
-        return `${n.toFixed(1)}%`;
-      }
-
-      const trendText = new Set([
-        "bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"
-      ]);
-      if (trendText.has(f) && n !== null){
-        const a = Math.abs(n);
-        if (a < 0.01) return "No cambia casi nada";
-        if (n > 0) return "Está subiendo rápido";
-        return "Está bajando";
-      }
-
-      const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
-      if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
-        if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
-          return `${asInt(n)} días`;
+      function renderFactors(containerId, emptyId, items, bad){
+        const root = document.getElementById(containerId);
+        const empty = document.getElementById(emptyId);
+        root.innerHTML = "";
+        if (!items || items.length === 0){
+          empty.style.display = "block";
+          return;
         }
+        empty.style.display = "none";
+
+        const maxAbs = Math.max(...items.map(x => Math.abs(x.shap))) || 1;
+
+        items.forEach(it => {
+          const w = Math.round((Math.abs(it.shap) / maxAbs) * 100);
+
+          const box = document.createElement("div");
+          box.className = "fact";
+          box.innerHTML = `
+            <div class="factTop">
+              <div class="factName">${niceFeatureName(it.feature)}</div>
+              <div class="factMini">Impacto: ${Number(it.shap).toFixed(3)}</div>
+            </div>
+            <div class="factMini">Valor: ${formatFeatureValue(it.feature, it.value)}</div>
+            <div class="factBar">
+              <div class="${bad ? "factFillBad" : "factFillOk"}" style="width:${w}%"></div>
+            </div>
+          `;
+          root.appendChild(box);
+        });
       }
 
-      if (n !== null){
-        return trimZeros(n.toFixed(3));
+      function buildKidSummary(pDefault){
+        const pct = (pDefault * 100).toFixed(2);
+        if (pDefault < 0.10) return `Riesgo bajo (${pct}%).`;
+        if (pDefault < 0.30) return `Riesgo moderado (${pct}%).`;
+        if (pDefault < 0.60) return `Riesgo alto (${pct}%).`;
+        return `Riesgo muy alto (${pct}%).`;
       }
-      return String(raw);
-    }
-
-    function trimZeros(s){
-      return s.replace(/\.?0+$/, "");
-    }
-
-    function renderFactors(containerId, emptyId, items, bad){
-      const root = document.getElementById(containerId);
-      const empty = document.getElementById(emptyId);
-      root.innerHTML = "";
-      if (!items || items.length === 0){
-        empty.style.display = "block";
-        return;
-      }
-      empty.style.display = "none";
-
-      const maxAbs = Math.max(...items.map(x => Math.abs(x.shap))) || 1;
-
-      items.forEach(it => {
-        const w = Math.round((Math.abs(it.shap) / maxAbs) * 100);
-
-        const box = document.createElement("div");
-        box.className = "fact";
-        box.innerHTML = `
-          <div class="factTop">
-            <div class="factName">${niceFeatureName(it.feature)}</div>
-            <div class="factMini">Impacto: ${Number(it.shap).toFixed(3)}</div>
-          </div>
-          <div class="factMini">Valor: ${formatFeatureValue(it.feature, it.value)}</div>
-          <div class="factBar">
-            <div class="${bad ? "factFillBad" : "factFillOk"}" style="width:${w}%"></div>
-          </div>
-        `;
-        root.appendChild(box);
-      });
-    }
-
-    function buildKidSummary(pDefault){
-      const pct = (pDefault * 100).toFixed(2);
-      if (pDefault < 0.10) return `Riesgo bajo (${pct}%).`;
-      if (pDefault < 0.30) return `Riesgo moderado (${pct}%).`;
-      if (pDefault < 0.60) return `Riesgo alto (${pct}%).`;
-      return `Riesgo muy alto (${pct}%).`;
-    }
 
       function renderResultUI(res){
-        // JSON técnico
         document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
 
         const pDefault = res?.proba?.default;
-
         if (typeof pDefault !== "number"){
           document.getElementById("ui-risk").textContent = "—%";
           document.getElementById("ui-meter").style.width = "0%";
@@ -882,155 +907,233 @@
 
         const pct = pDefault * 100;
         document.getElementById("ui-risk").textContent = pct.toFixed(2) + "%";
-        document.getElementById("ui-meter").style.width =
-          Math.max(0, Math.min(100, Math.round(pct))) + "%";
+        document.getElementById("ui-meter").style.width = Math.max(0, Math.min(100, Math.round(pct))) + "%";
 
-        // ✅ estado (Seguro / Revisión / Peligro)
         renderRiskStatus(pct);
-
-        // ✅ resumen
         document.getElementById("ui-summary").textContent = buildKidSummary(pDefault);
 
         renderFactors("ui-inc", "ui-inc-empty", res?.shap?.top_risk_increasing || [], true);
         renderFactors("ui-dec", "ui-dec-empty", res?.shap?.top_risk_decreasing || [], false);
       }
-    // ===== Wiring de pantallas =====
-    btnExisting.addEventListener("click", () => {
-      state.flow = "existing";
-      state.editScreen = "existing";
-      navigateTo("existing");
-      document.getElementById("skIdCurr").focus();
-    });
-    makeKeyboardClickable(btnExisting, () => btnExisting.click());
 
-    btnNew.addEventListener("click", () => {
-      state.flow = "new";
-      state.editScreen = "newClient";
-      navigateTo("newClient");
-      document.getElementById("fullName").focus();
-    });
-    makeKeyboardClickable(btnNew, () => btnNew.click());
+      // =====================================
+      // Wiring (flujo correcto)
+      // =====================================
+      btnExisting.addEventListener("click", () => {
+        state.flow = "existing";
+        state.editScreen = "existing";
+        if (skRow) skRow.classList.remove("hidden"); // SK visible en existing real
+        const title = document.querySelector("#screen-existing .panel-title");
+        if (title) title.textContent = "Cliente existente → Datos del crédito";
+        navigateTo("existing");
+        document.getElementById("skIdCurr").focus();
+      });
+      makeKeyboardClickable(btnExisting, () => btnExisting.click());
 
-    btnBackExisting.addEventListener("click", () => navigateTo("choice"));
-    btnBackNew.addEventListener("click", () => navigateTo("choice"));
+      btnNew.addEventListener("click", () => {
+        state.flow = "new_register";
+        state.editScreen = "newClient";
+        navigateTo("newClient");
+        document.getElementById("fullName").focus();
+      });
+      makeKeyboardClickable(btnNew, () => btnNew.click());
 
-    btnHome.addEventListener("click", () => navigateTo("choice"));
-    btnNewRequest.addEventListener("click", () => {
-      formExisting.reset();
-      formNew.reset();
-      clearStatus(statusExisting);
-      clearStatus(statusNew);
-      clearStatus(statusConfirm);
-      clearStatus(statusResult);
+      btnBackExisting.addEventListener("click", () => navigateTo("choice"));
+      btnBackNew.addEventListener("click", () => navigateTo("choice"));
+      btnHome.addEventListener("click", () => navigateTo("choice"));
 
-      // limpia UI resultado
-      const uiDecision = document.getElementById("ui-decision");
-      if (uiDecision) uiDecision.textContent = "—";
+      btnNewRequest.addEventListener("click", () => {
+        formExisting.reset();
+        formNew.reset();
 
-      document.getElementById("ui-risk").textContent = "—%";
-      document.getElementById("ui-meter").style.width = "0%";
-      document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
-      document.getElementById("ui-inc").innerHTML = "";
-      document.getElementById("ui-dec").innerHTML = "";
-      document.getElementById("ui-json").textContent = "{}";
+        clearStatus(statusExisting);
+        clearStatus(statusNew);
+        clearStatus(statusConfirm);
+        clearStatus(statusResult);
 
-      // ✅ resetea el estado visual
-      renderRiskStatus(NaN);
+        document.getElementById("ui-risk").textContent = "—%";
+        document.getElementById("ui-meter").style.width = "0%";
+        document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
+        document.getElementById("ui-inc").innerHTML = "";
+        document.getElementById("ui-dec").innerHTML = "";
+        document.getElementById("ui-json").textContent = "{}";
 
-      navigateTo("choice");
-    });
+        renderRiskStatus(NaN);
 
+        // reset state
+        state.flow = null;
+        state.editScreen = null;
+        state.register = null;
+        state.credit = null;
+        state.virtualSk = null;
 
-    formExisting.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const v = validateExisting();
-      if (!v.ok){
-        setStatus(statusExisting, "err", "Corrige los campos marcados.");
-        return;
-      }
-      state.payload = v.payload;
+        // vuelve a mostrar SK row (por si veníamos de new_credit)
+        if (skRow) skRow.classList.remove("hidden");
 
-      confirmTitle.textContent = "Confirmar scoring (cliente existente)";
-      confirmSummary.innerHTML = buildSummaryRows([
-        { k:"SK_ID_CURR", v:String(state.payload.sk_id_curr) },
-        { k:"Cantidad", v:`${state.payload.amt_credit.toFixed(2)} €` },
-        { k:"Tipo", v:creditTypeLabel(state.payload.credit_type) }
-      ]);
+        // restaura título
+        const title = document.querySelector("#screen-existing .panel-title");
+        if (title) title.textContent = "Cliente existente → Datos del crédito";
 
-      navigateTo("confirm");
-    });
+        navigateTo("choice");
+      });
 
-    formNew.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const v = validateNew();
-      if (!v.ok){
-        setStatus(statusNew, "err", "Corrige los campos marcados.");
-        return;
-      }
-      state.payload = v.payload;
+      // 1) Existing credit form
+      formExisting.addEventListener("submit", (e) => {
+        e.preventDefault();
 
-      confirmTitle.textContent = "Confirmar registro (nuevo cliente)";
-      confirmSummary.innerHTML = buildSummaryRows([
-        { k:"Nombre", v: state.payload.full_name },
-        { k:"DNI/NIE", v: state.payload.dni },
-        { k:"Email", v: state.payload.email },
-        { k:"Teléfono", v: state.payload.phone }
-      ]);
+        // Si estamos en new_credit, no pedimos SK manual
+        const requireSk = (state.flow !== "new_credit");
+        const v = validateExisting({ requireSk });
 
-      navigateTo("confirm");
-    });
+        if (!v.ok) {
+          setStatus(statusExisting, "err", "Corrige los campos marcados.");
+          return;
+        }
 
-    btnConfirmEdit.addEventListener("click", () => {
-      clearStatus(statusConfirm);
-      navigateTo(state.editScreen);
-    });
+        // Guardar crédito
+        state.credit = { amt_credit: v.payload.amt_credit, credit_type: v.payload.credit_type };
+
+        if (state.flow === "existing") {
+          confirmTitle.textContent = "Confirmar scoring (cliente existente)";
+          confirmSummary.innerHTML = buildSummaryRows([
+            { k:"SK_ID_CURR", v:String(v.payload.sk_id_curr) },
+            { k:"Cantidad", v:`${state.credit.amt_credit.toFixed(2)} €` },
+            { k:"Tipo", v:creditTypeLabel(state.credit.credit_type) }
+          ]);
+
+          // payload final para /api/score
+          state._finalPayload = {
+            sk_id_curr: v.payload.sk_id_curr,
+            amt_credit: state.credit.amt_credit,
+            credit_type: state.credit.credit_type
+          };
+        } else {
+          // payload final para /api/new-client/score
+          confirmTitle.textContent = "Confirmar solicitud (nuevo cliente)";
+          confirmSummary.innerHTML = buildSummaryRows([
+            { k:"SK virtual", v:String(state.virtualSk) },
+            { k:"Cantidad", v:`${state.credit.amt_credit.toFixed(2)} €` },
+            { k:"Tipo", v:creditTypeLabel(state.credit.credit_type) }
+          ]);
+
+          state._finalPayload = {
+            sk_id_curr: state.virtualSk,
+            amt_credit: state.credit.amt_credit,
+            credit_type: state.credit.credit_type,
+            features: {}
+          };
+        }
+
+        navigateTo("confirm");
+      });
+
+      // 2) New client register form
+      formNew.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const v = validateNew();
+        if (!v.ok) {
+          setStatus(statusNew, "err", "Corrige los campos marcados.");
+          return;
+        }
+
+        state.register = v.payload;
+
+        confirmTitle.textContent = "Confirmar registro (nuevo cliente)";
+        confirmSummary.innerHTML = buildSummaryRows([
+          { k: "Nombre", v: state.register.full_name },
+          { k: "DNI/NIE", v: state.register.dni },
+          { k: "Email", v: state.register.email },
+          { k: "Teléfono", v: state.register.phone }
+        ]);
+
+        navigateTo("confirm");
+      });
+
+      btnConfirmEdit.addEventListener("click", () => {
+        clearStatus(statusConfirm);
+        navigateTo(state.editScreen);
+      });
 
     btnConfirmCancel.addEventListener("click", () => {
+      clearStatus(statusExisting);
+      clearStatus(statusNew);
+      clearStatus(statusResult);
       clearStatus(statusConfirm);
+
+      // reset state (evita bugs raros al cambiar de flujo)
+      state.flow = null;
+      state.editScreen = null;
+      state.register = null;
+      state.credit = null;
+      state.virtualSk = null;
+
+      // por si veníamos de new_credit (SK oculto)
+      if (skRow) skRow.classList.remove("hidden");
+      const title = document.querySelector("#screen-existing .panel-title");
+      if (title) title.textContent = "Cliente existente → Datos del crédito";
+
       navigateTo("choice");
     });
 
-    btnConfirmSend.addEventListener("click", async () => {
-      clearStatus(statusConfirm);
-      clearStatus(statusResult);
-      setLoading(btnConfirmSend, true, "Enviando...");
+      // 3) Confirm send (según flujo)
+      btnConfirmSend.addEventListener("click", async () => {
+        clearStatus(statusConfirm);
+        clearStatus(statusResult);
+        setLoading(btnConfirmSend, true, "Enviando...");
 
-      try {
-        if (state.flow === "existing"){
-          const res = await postJSON(ENDPOINTS.score, state.payload);
-          // Render bonito (modo niños)
-          renderResultUI(res);
-          navigateTo("result");
-        } else {
-          const res = await postJSON(ENDPOINTS.newClient, state.payload);
-          // Para nuevo cliente, mostramos mensaje simple (sin gráfica)
-          setStatus(statusResult, "ok",
-            `✅ Cliente registrado.\nID asignado: ${res.client_id ?? "(sin id)"}\nEstado: ${res.status ?? "OK"}\n`
-          );
-          // Y dejamos el JSON por si acaso
-          document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
-          // Dejamos valores en blanco en el dashboard (no aplica)
-          const uiDecision2 = document.getElementById("ui-decision");
-          if (uiDecision2) uiDecision2.textContent = "—";
-          renderRiskStatus(NaN);
-          document.getElementById("ui-risk").textContent = "—%";
-          document.getElementById("ui-meter").style.width = "0%";
-          document.getElementById("ui-summary").textContent = "Registro completado. Para ver riesgo, usa “Cliente existente”.";
-          const uiThreshold = document.getElementById("ui-threshold");
-          if (uiThreshold) uiThreshold.textContent = "—";
-          document.getElementById("ui-inc").innerHTML = "";
-          document.getElementById("ui-dec").innerHTML = "";
-          navigateTo("result");
+        try {
+          if (state.flow === "existing") {
+            // scoring existing
+            const res = await postJSON(ENDPOINTS.score, state._finalPayload);
+            renderResultUI(res);
+            navigateTo("result");
+            return;
+          }
+
+          if (state.flow === "new_register") {
+            // registrar
+            const reg = await postJSON(ENDPOINTS.newClientRegister, state.register);
+            const sk = reg?.sk_id_curr;
+
+            if (!Number.isFinite(Number(sk))) {
+              throw new Error("El backend no devolvió sk_id_curr en el registro.");
+            }
+
+            state.virtualSk = Number(sk);
+
+            // pasar a pedir crédito (reutiliza existing)
+            state.flow = "new_credit";
+            state.editScreen = "existing";
+
+            if (skRow) skRow.classList.add("hidden"); // ocultar SK manual
+            const title = document.querySelector("#screen-existing .panel-title");
+            if (title) title.textContent = "Nuevo cliente → Datos del crédito";
+
+            // Aviso corto
+            setStatus(statusExisting, "ok", `Registro OK. SK virtual: ${state.virtualSk}. Ahora introduce el crédito.`);
+            navigateTo("existing");
+            return;
+          }
+
+          if (state.flow === "new_credit") {
+            // scoring new client
+            const res = await postJSON(ENDPOINTS.newClientScore, state._finalPayload);
+            renderResultUI(res);
+            navigateTo("result");
+            return;
+          }
+
+          throw new Error("Estado de flujo desconocido.");
+        } catch (err) {
+          setStatus(statusConfirm, "err", "Error:\n" + (err?.message || String(err)));
+        } finally {
+          setLoading(btnConfirmSend, false);
         }
-      } catch (err){
-        setStatus(statusConfirm, "err", "Error:\n" + (err?.message || String(err)));
-      } finally {
-        setLoading(btnConfirmSend, false);
-      }
-    });
+      });
 
-    // init
+      // init (al final)
       loadFeatureLabels().finally(() => navigateTo("choice"));
-  </script>
-</body>
+    </script>
+  </body>
 </html>
