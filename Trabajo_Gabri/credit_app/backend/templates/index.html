@@ -149,9 +149,94 @@
     background:#0f1626;
     color:#e8eefc;
   }
+  /* =========================
+     NEW CLIENT (Mega-form) UI
+     - Reutiliza tu tema oscuro
+     ========================= */
 
-  select:invalid{ color: rgba(169,180,204,0.85); }
-  select option[value=""]{ color: rgba(169,180,204,0.85); }
+  .section{
+    border:1px solid var(--border);
+    background:rgba(255,255,255,0.03);
+    border-radius:14px;
+    padding:14px;
+  }
+
+  .section + .section{ margin-top:12px; }
+
+  .section-title{
+    margin:0 0 10px;
+    font-size:13px;
+    color:var(--muted);
+    font-weight:900;
+    text-transform:uppercase;
+    letter-spacing:.7px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+
+  .section-title::before{
+    content:"";
+    width:4px;
+    height:16px;
+    border-radius:2px;
+    background:rgba(120,160,255,0.75);
+  }
+
+  .grid-2{
+    display:grid;
+    grid-template-columns:repeat(2, minmax(240px, 1fr));
+    gap:12px;
+  }
+
+  .grid-3{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(200px, 1fr));
+    gap:12px;
+  }
+
+  .checkbox-grid{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(180px, 1fr));
+    gap:10px;
+  }
+
+  .check{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    border:1px solid var(--border);
+    background:rgba(0,0,0,0.16);
+    user-select:none;
+  }
+
+  .check input[type="checkbox"]{
+    width:18px;
+    height:18px;
+    accent-color: rgba(120,160,255,0.95);
+  }
+
+  .check span{
+    font-size:13px;
+    color:rgba(232,238,252,.9);
+    font-weight:700;
+  }
+
+  .hint{
+    font-size:12px;
+    color:rgba(232, 238, 252, .65);
+    margin-top:6px;
+    line-height:1.35;
+  }
+
+  @media (max-width:720px){
+    .grid-2, .grid-3{ grid-template-columns:1fr; }
+    .checkbox-grid{ grid-template-columns:1fr; }
+    select:invalid{ color: rgba(169,180,204,0.85); }
+    select option[value=""]{ color: rgba(169,180,204,0.85); }
+  }
 
     input:focus, select:focus{
       border-color:rgba(120,160,255,0.55);
@@ -332,65 +417,216 @@
       </form>
     </section>
 
-    <!-- New -->
-    <section id="screen-new" class="panel hidden" aria-label="Nuevo cliente">
-      <div class="panel-header">
-        <h3 class="panel-title">Nuevo cliente → Registro</h3>
-        <button class="btn" id="btn-back-new" type="button">← Volver</button>
+<!-- New (MEGA FORM con tu estilo) -->
+<section id="screen-new" class="panel hidden" aria-label="Nuevo cliente">
+  <div class="panel-header">
+    <h3 class="panel-title">Nuevo cliente → Datos completos</h3>
+    <button class="btn" id="btn-back-new" type="button">← Volver</button>
+  </div>
+
+  <form id="form-new" novalidate>
+
+      <div class="section">
+    <p class="section-title">Identificación</p>
+    <div class="grid-2">
+
+      <div class="row">
+        <label for="fullName">Nombre completo</label>
+        <div>
+          <input id="fullName" name="fullName" type="text" placeholder="Ej: Juan Pérez" required />
+          <div class="field-error hidden" id="err-name"><strong>Error:</strong> Nombre requerido.</div>
+        </div>
       </div>
 
-      <form id="form-new" novalidate>
-        <div class="form-grid">
-          <div class="row">
-            <label for="fullName">Nombre completo</label>
-            <div>
-              <input id="fullName" name="fullName" type="text" placeholder="Ej: Juan Pérez" required />
-              <div class="field-error hidden" id="err-name"><strong>Error:</strong> Nombre requerido.</div>
-            </div>
-          </div>
+      <div class="row">
+        <label for="dni">DNI/NIE</label>
+        <div>
+          <input id="dni" name="dni" type="text" placeholder="Ej: 12345678Z" required />
+          <div class="field-error hidden" id="err-dni"><strong>Error:</strong> DNI/NIE requerido.</div>
+        </div>
+      </div>
 
-          <div class="row">
-            <label for="dni">DNI/NIE</label>
-            <div>
-              <input id="dni" name="dni" type="text" placeholder="Ej: 12345678Z" required />
-              <div class="field-error hidden" id="err-dni"><strong>Error:</strong> DNI/NIE requerido.</div>
-            </div>
-          </div>
+      <div class="row">
+        <label for="email">Email</label>
+        <div>
+          <input id="email" name="email" type="email" placeholder="Ej: juan@email.com" required />
+          <div class="field-error hidden" id="err-email"><strong>Error:</strong> Email válido requerido.</div>
+        </div>
+      </div>
 
-          <div class="row">
-            <label for="email">Email</label>
-            <div>
-              <input id="email" name="email" type="email" placeholder="Ej: juan@email.com" required />
-              <div class="field-error hidden" id="err-email"><strong>Error:</strong> Email válido requerido.</div>
-            </div>
-          </div>
+      <div class="row">
+        <label for="phone">Teléfono</label>
+        <div>
+          <input id="phone" name="phone" type="tel" placeholder="Ej: 600123123" required />
+          <div class="field-error hidden" id="err-phone"><strong>Error:</strong> Teléfono requerido.</div>
+        </div>
+      </div>
 
-          <div class="row">
-            <label for="phone">Teléfono</label>
-            <div>
-              <input id="phone" name="phone" type="tel" placeholder="Ej: 600123123" required />
-              <div class="field-error hidden" id="err-phone"><strong>Error:</strong> Teléfono requerido.</div>
-            </div>
+    </div>
+  </div>
+    <!-- 1) Contrato -->
+    <div class="section">
+      <p class="section-title">Información del contrato</p>
+      <div class="grid-2">
+        <div class="row">
+          <label for="nc_contract_type">Tipo de contrato</label>
+          <div>
+            <select id="nc_contract_type" name="contract_type" required>
+              <option value="" selected disabled>Selecciona</option>
+              <option value="Cash loans">Préstamo personal</option>
+              <option value="Revolving loans">Crédito revolving</option>
+            </select>
           </div>
         </div>
 
-        <div class="actions">
+        <div class="row">
+          <label for="nc_annuity">Anualidad</label>
+          <div>
+            <input id="nc_annuity" name="annuity" type="number" step="0.01" min="0" placeholder="Ej: 25000" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_goods_price">Precio de bienes</label>
+          <div>
+            <input id="nc_goods_price" name="goods_price" type="number" step="0.01" min="0" placeholder="Ej: 450000" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2) Personal -->
+    <div class="section">
+      <p class="section-title">Información personal</p>
+      <div class="grid-2">
+        <div class="row">
+          <label for="nc_gender">Género</label>
+          <div>
+            <select id="nc_gender" name="gender" required>
+              <option value="" selected disabled>Selecciona</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_children">Número de hijos</label>
+          <div>
+            <input id="nc_children" name="children" type="number" min="0" value="0" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_family_members">Miembros de familia</label>
+          <div>
+            <input id="nc_family_members" name="family_members" type="number" min="1" value="2" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_age_years">Edad (años)</label>
+          <div>
+            <input id="nc_age_years" name="age_years" type="number" min="18" max="100" placeholder="Ej: 35" />
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:12px;">
+        <div class="row">
+          <label for="nc_car">¿Tiene coche?</label>
+          <div>
+            <select id="nc_car" name="car">
+              <option value="N">No</option>
+              <option value="Y">Sí</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_realty">¿Tiene propiedad?</label>
+          <div>
+            <select id="nc_realty" name="realty">
+              <option value="Y">Sí</option>
+              <option value="N">No</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_car_age">Edad del coche (años)</label>
+          <div>
+            <input id="nc_car_age" name="car_age" type="number" min="0" placeholder="Ej: 0" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3) Financiera -->
+    <div class="section">
+      <p class="section-title">Información financiera</p>
+      <div class="grid-2">
+        <div class="row">
+          <label for="nc_income">Ingreso total anual</label>
+          <div>
+            <input id="nc_income" name="income" type="number" step="0.01" min="0" placeholder="Ej: 150000" required />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="nc_income_type">Tipo de ingreso</label>
+          <div>
+            <select id="nc_income_type" name="income_type">
+              <option value="Working">Trabajando</option>
+              <option value="Commercial associate">Asociado comercial</option>
+              <option value="Pensioner">Pensionista</option>
+              <option value="State servant">Funcionario</option>
+              <option value="Student">Estudiante</option>
+              <option value="Businessman">Empresario</option>
+              <option value="Maternity leave">Baja maternidad</option>
+              <option value="Unemployed">Desempleado</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+      <div class="actions" style="justify-content:space-between;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" type="button" id="btn-fill-good">🟢 Ejemplo bueno</button>
+          <button class="btn" type="button" id="btn-fill-mid">🟡 Ejemplo medio</button>
+          <button class="btn" type="button" id="btn-fill-bad">🔴 Ejemplo malo</button>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" type="reset">Limpiar</button>
           <button class="btn btn-primary" type="submit">Continuar</button>
         </div>
+      </div>
 
-        <div class="status hidden" id="status-new"></div>
-      </form>
-    </section>
+
+    <div class="status hidden" id="status-new"></div>
+  </form>
+</section>
 
     <!-- Confirm -->
     <section id="screen-confirm" class="panel hidden" aria-label="Confirmación">
       <div class="panel-header">
         <h3 class="panel-title" id="confirm-title">Confirmar</h3>
-        <button class="btn" id="btn-confirm-edit" type="button">← Editar</button>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn" id="btn-confirm-edit" type="button">← Editar</button>
+          <button class="btn hidden" id="btn-edit-client" type="button">Editar cliente</button>
+          <button class="btn hidden" id="btn-edit-credit" type="button">Editar crédito</button>
+        </div>
       </div>
 
       <div class="summary" id="confirm-summary"></div>
+
+      <!-- SK asignado (solo para nuevo cliente, se muestra tras registrar) -->
+      <div class="summary-row hidden" id="row-sk-assigned">
+        <div class="summary-k">ID asignado</div>
+        <div class="summary-v" id="ui-sk-assigned">—</div>
+      </div>
 
       <div class="actions">
         <button class="btn btn-danger" id="btn-confirm-cancel" type="button">Cancelar</button>
@@ -525,14 +761,23 @@
           FEATURE_LABELS = await resp.json();
         } catch (e) {
           FEATURE_LABELS = {};
+          // aviso leve, no rompe flujo
+          console.warn("No se pudieron cargar los labels de features:", e);
         }
       }
+
 
       function niceFeatureName(raw) {
         if (!raw) return "—";
         const k = String(raw).trim();
-        return FEATURE_LABELS[k] || k;
+        if (FEATURE_LABELS[k]) return FEATURE_LABELS[k];
+
+        // fallback: case-insensitive
+        const lower = k.toLowerCase();
+        const foundKey = Object.keys(FEATURE_LABELS).find(x => x.toLowerCase() === lower);
+        return foundKey ? FEATURE_LABELS[foundKey] : k;
       }
+
 
       // =====================================
       // HTTP helper
@@ -564,13 +809,16 @@
       // =====================================
       // State (separa registro vs crédito)
       // =====================================
-      const state = {
-        flow: null,          // "existing" | "new_register" | "new_credit"
-        editScreen: null,    // "existing" | "newClient"
-        register: null,      // { full_name, dni, email, phone }
-        credit: null,        // { amt_credit, credit_type }
-        virtualSk: null      // int (devuelto por /api/new-client)
-      };
+    const state = {
+      flow: null,           // "existing" | "new_register" | "new_credit"
+      editScreen: null,     // "existing" | "newClient"
+      editScreen2: null,    // pantalla secundaria (para poder editar mega-form en new_credit)
+      register: null,       // { full_name, dni, email, phone }
+      credit: null,         // { amt_credit, credit_type }
+      virtualSk: null,      // int (devuelto por /api/new-client)
+      newFeatures: null,    // features del mega-form (nuevo cliente)
+      _finalPayload: null   // payload listo para enviar
+    };
 
       // =====================================
       // DOM refs
@@ -606,9 +854,16 @@
       const confirmTitle = document.getElementById("confirm-title");
       const confirmSummary = document.getElementById("confirm-summary");
 
+      // UI: mostrar SK asignado tras registrar nuevo cliente
+    const rowSkAssigned = document.getElementById("row-sk-assigned");
+    const uiSkAssigned = document.getElementById("ui-sk-assigned");
+
+
       const btnConfirmEdit = document.getElementById("btn-confirm-edit");
       const btnConfirmCancel = document.getElementById("btn-confirm-cancel");
       const btnConfirmSend = document.getElementById("btn-confirm-send");
+      const btnEditClient = document.getElementById("btn-edit-client");
+      const btnEditCredit = document.getElementById("btn-edit-credit");
 
       const btnHome = document.getElementById("btn-home");
       const btnNewRequest = document.getElementById("btn-new-request");
@@ -693,36 +948,57 @@
       // =====================================
       // Validations
       // =====================================
-      function validateExisting({ requireSk = true } = {}) {
-        clearStatus(statusExisting);
-        errSk.classList.add("hidden");
-        errAmt.classList.add("hidden");
-        errType.classList.add("hidden");
+        function validateExisting({ requireSk = true } = {}) {
+          clearStatus(statusExisting);
+          errSk.classList.add("hidden");
+          errAmt.classList.add("hidden");
+          errType.classList.add("hidden");
 
-        const sk = Number(document.getElementById("skIdCurr").value);
-        const amt = Number(document.getElementById("amtCredit").value);
+          // 1) Calcula SK primero (única fuente de verdad)
+          const sk = requireSk
+            ? Number(document.getElementById("skIdCurr").value)
+            : Number(state.virtualSk);
 
-        const creditTypeEl = document.getElementById("creditType");
-        const type = creditTypeEl.value;
-        creditTypeEl.removeAttribute("aria-invalid");
+          // 2) Si estamos en new_credit, el SK virtual DEBE existir
+          if (!requireSk) {
+            if (!Number.isFinite(sk) || sk <= 0) {
+              setStatus(statusExisting, "err", "No hay SK virtual válido. Vuelve a registrar el cliente.");
+              return { ok: false, payload: {} };
+            }
+          }
 
-        let ok = true;
+          const amt = Number(document.getElementById("amtCredit").value);
 
-        if (requireSk) {
-          if (!Number.isFinite(sk) || sk <= 0) { errSk.classList.remove("hidden"); ok = false; }
+          const creditTypeEl = document.getElementById("creditType");
+          const type = creditTypeEl.value;
+          creditTypeEl.removeAttribute("aria-invalid");
+
+          let ok = true;
+
+          // Si es existing real, validamos el SK del input
+          if (requireSk) {
+            if (!Number.isFinite(sk) || sk <= 0) {
+              errSk.classList.remove("hidden");
+              ok = false;
+            }
+          }
+
+          if (!Number.isFinite(amt) || amt <= 0) {
+            errAmt.classList.remove("hidden");
+            ok = false;
+          }
+
+          if (!type) {
+            errType.classList.remove("hidden");
+            creditTypeEl.setAttribute("aria-invalid", "true");
+            ok = false;
+          }
+
+          return {
+            ok,
+            payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type }
+          };
         }
-        if (!Number.isFinite(amt) || amt <= 0) { errAmt.classList.remove("hidden"); ok = false; }
-        if (!type) {
-          errType.classList.remove("hidden");
-          creditTypeEl.setAttribute("aria-invalid", "true");
-          ok = false;
-        }
-
-        return {
-          ok,
-          payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type }
-        };
-      }
 
       function validateNew() {
         clearStatus(statusNew);
@@ -746,29 +1022,88 @@
         return { ok, payload: { full_name: fullName, dni, email, phone } };
       }
 
+      function collectNewClientFeatures(){
+        const num = (id, fallback=null) => {
+          const v = Number(document.getElementById(id)?.value);
+          return Number.isFinite(v) ? v : fallback;
+        };
+        const str = (id, fallback="UNKNOWN") => {
+          const el = document.getElementById(id);
+          const v = String(el?.value ?? "").trim();
+          return v ? v : fallback; // NUNCA null
+        };
+
+        return {
+          AMT_ANNUITY: num("nc_annuity"),
+          AMT_GOODS_PRICE: num("nc_goods_price"),
+
+          CODE_GENDER: str("nc_gender"),
+          CNT_CHILDREN: num("nc_children", 0),
+          CNT_FAM_MEMBERS: num("nc_family_members"),
+          DAYS_BIRTH: (() => {
+            const a = num("nc_age_years");
+            if (!Number.isFinite(a)) return null;
+            const clamped = Math.max(18, Math.min(100, a));
+            return -Math.round(clamped * 365.25);
+          })(),
+
+          FLAG_OWN_CAR: str("nc_car"),
+          FLAG_OWN_REALTY: str("nc_realty"),
+          OWN_CAR_AGE: num("nc_car_age"),
+
+          AMT_INCOME_TOTAL: num("nc_income"),
+          NAME_INCOME_TYPE: str("nc_income_type"),
+        };
+      }
+
       // =====================================
       // Result rendering (dejas lo tuyo)
       // =====================================
       function trimZeros(s){ return s.replace(/\.?0+$/, ""); }
 
-      function formatFeatureValue(feature, value){
+      function formatFeatureValue(feature, value) {
         if (value === null || value === undefined) return "—";
 
         const f = String(feature || "").trim();
         const raw = value;
 
+        // Intentar parsear numérico cuando se pueda
         let n = null;
         if (typeof raw === "number" && Number.isFinite(raw)) n = raw;
-        if (typeof raw === "string"){
+        if (typeof raw === "string") {
           const s = raw.trim();
           if (s !== "" && Number.isFinite(Number(s))) n = Number(s);
         }
 
-        if (f === "NAME_CONTRACT_TYPE"){
+        // Helpers
+        const asMoney = (x) => {
+          if (!Number.isFinite(x)) return String(raw);
+          return x.toLocaleString("es-ES", {
+            style: "currency",
+            currency: "EUR",
+            maximumFractionDigits: 0,
+          });
+        };
+
+        const asInt = (x) => (Number.isFinite(x) ? Math.round(x) : null);
+
+        const yesNo = (x) => {
+          const s = String(x).trim().toUpperCase();
+          if (s === "Y" || s === "YES" || s === "1" || s === "TRUE") return "Sí";
+          if (s === "N" || s === "NO" || s === "0" || s === "FALSE") return "No";
+          return String(x);
+        };
+
+        const trimZeros = (s) => String(s).replace(/\.?0+$/, "");
+
+        // Casos especiales
+        if (f === "NAME_CONTRACT_TYPE") {
+          // soporte numérico 0/1
           const mapNum = { 0: "Préstamo personal", 1: "Crédito revolving" };
           if (n !== null && mapNum[n] !== undefined) return mapNum[n];
 
-          if (typeof raw === "string"){
+          // soporte string
+          if (typeof raw === "string") {
             const s = raw.trim().toLowerCase();
             if (s === "cash_loans" || s === "cash loans") return "Préstamo personal";
             if (s === "revolving_loans" || s === "revolving loans") return "Crédito revolving";
@@ -777,21 +1112,18 @@
           return String(raw);
         }
 
-        if (f.startsWith("EXT_SOURCE_") && n !== null){
-          return `Nota: ${(n * 100).toFixed(1)} / 100`;
-        }
-
-        const asMoney = (x) => {
-          if (!Number.isFinite(x)) return String(raw);
-          return x.toLocaleString("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits:0 });
-        };
-        const asInt = (x) => Number.isFinite(x) ? Math.round(x) : null;
-        const yesNo = (x) => (Number(x) === 1 ? "Sí" : "No");
-
-        if (f === "CODE_GENDER"){
+        if (f === "CODE_GENDER") {
+          // Soporta 0/1 y también "M"/"F"
           if (n === 0) return "Mujer";
           if (n === 1) return "Hombre";
+          const s = String(raw || "").trim().toUpperCase();
+          if (s === "F") return "Mujer";
+          if (s === "M") return "Hombre";
           return String(raw);
+        }
+
+        if (f.startsWith("EXT_SOURCE_") && n !== null) {
+          return `Nota: ${(n * 100).toFixed(1)} / 100`;
         }
 
         const yesNoFeatures = new Set([
@@ -800,27 +1132,21 @@
           "REG_REGION_NOT_LIVE_REGION","REG_REGION_NOT_WORK_REGION","LIVE_REGION_NOT_WORK_REGION",
           "REG_CITY_NOT_LIVE_CITY","REG_CITY_NOT_WORK_CITY","LIVE_CITY_NOT_WORK_CITY"
         ]);
-        if (yesNoFeatures.has(f)){
-          return yesNo(n ?? raw);
-        }
+        if (yesNoFeatures.has(f)) return yesNo(n ?? raw);
 
-        if (f.startsWith("DAYS_") && n !== null){
+        if (f.startsWith("DAYS_") && n !== null) {
           const days = Math.abs(asInt(n));
           if (n < 0) return `Hace ${days} días`;
           return `${days} días`;
         }
 
-        if (f === "OWN_CAR_AGE" && n !== null){
-          return `${asInt(n)} años`;
-        }
+        if (f === "OWN_CAR_AGE" && n !== null) return `${asInt(n)} años`;
 
         const moneyFeatures = new Set([
           "AMT_CREDIT","AMT_ANNUITY","AMT_INCOME_TOTAL","AMT_GOODS_PRICE",
           "prev_amt_mean","prev_amt_max","prev_weighted_amt","inst_amt_paid_1y"
         ]);
-        if (moneyFeatures.has(f) && n !== null){
-          return asMoney(n);
-        }
+        if (moneyFeatures.has(f) && n !== null) return asMoney(n);
 
         const percentFeatures = new Set([
           "cc_utilization","cc_util_recent","cc_max_utilization","overall_credit_utilization",
@@ -830,26 +1156,20 @@
           "total_debt_to_income","debt_to_income_recent","total_overdue_to_income",
           "bureau_dpd_ratio"
         ]);
-        if (percentFeatures.has(f) && n !== null){
+        if (percentFeatures.has(f) && n !== null) {
           if (n >= 0 && n <= 1) return `${(n * 100).toFixed(1)}%`;
           return `${n.toFixed(1)}%`;
         }
 
         const trendText = new Set(["bureau_debt_acceleration","pos_dpd_acceleration","cc_balance_trend"]);
-        if (trendText.has(f) && n !== null){
+        if (trendText.has(f) && n !== null) {
           const a = Math.abs(n);
           if (a < 0.01) return "No cambia casi nada";
           if (n > 0) return "Está subiendo rápido";
           return "Está bajando";
         }
 
-        const dpdLike = ["dpd","late","payment_gap","dbd","overdue"];
-        if (n !== null && dpdLike.some(k => f.toLowerCase().includes(k))){
-          if (f.toLowerCase().includes("days") || f.toLowerCase().includes("dpd") || f.toLowerCase().includes("dbd")){
-            return `${asInt(n)} días`;
-          }
-        }
-
+        // Fallback numérico / string
         if (n !== null) return trimZeros(n.toFixed(3));
         return String(raw);
       }
@@ -886,12 +1206,13 @@
       }
 
       function buildKidSummary(pDefault){
-        const pct = (pDefault * 100).toFixed(2);
-        if (pDefault < 0.10) return `Riesgo bajo (${pct}%).`;
-        if (pDefault < 0.30) return `Riesgo moderado (${pct}%).`;
-        if (pDefault < 0.60) return `Riesgo alto (${pct}%).`;
-        return `Riesgo muy alto (${pct}%).`;
+        const pct = pDefault * 100;
+        if (!Number.isFinite(pct)) return "No se pudo calcular el riesgo.";
+        if (pct < 30) return `Riesgo bajo (${pct.toFixed(2)}%).`;
+        if (pct < 60) return `Riesgo medio (${pct.toFixed(2)}%).`;
+        return `Riesgo alto (${pct.toFixed(2)}%).`;
       }
+
 
       function renderResultUI(res){
         document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
@@ -938,44 +1259,56 @@
       });
       makeKeyboardClickable(btnNew, () => btnNew.click());
 
-      btnBackExisting.addEventListener("click", () => navigateTo("choice"));
-      btnBackNew.addEventListener("click", () => navigateTo("choice"));
-      btnHome.addEventListener("click", () => navigateTo("choice"));
+    function resetAll(){
+      formExisting.reset();
+      formNew.reset();
 
-      btnNewRequest.addEventListener("click", () => {
-        formExisting.reset();
-        formNew.reset();
+      clearStatus(statusExisting);
+      clearStatus(statusNew);
+      clearStatus(statusConfirm);
+      clearStatus(statusResult);
 
-        clearStatus(statusExisting);
-        clearStatus(statusNew);
-        clearStatus(statusConfirm);
-        clearStatus(statusResult);
+      document.getElementById("ui-risk").textContent = "—%";
+      document.getElementById("ui-meter").style.width = "0%";
+      document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
+      document.getElementById("ui-inc").innerHTML = "";
+      document.getElementById("ui-dec").innerHTML = "";
+      document.getElementById("ui-json").textContent = "{}";
 
-        document.getElementById("ui-risk").textContent = "—%";
-        document.getElementById("ui-meter").style.width = "0%";
-        document.getElementById("ui-summary").textContent = "Aquí aparecerá una explicación simple.";
-        document.getElementById("ui-inc").innerHTML = "";
-        document.getElementById("ui-dec").innerHTML = "";
-        document.getElementById("ui-json").textContent = "{}";
+      renderRiskStatus(NaN);
+      btnEditClient?.classList.add("hidden");
+      btnEditCredit?.classList.add("hidden");
 
-        renderRiskStatus(NaN);
+      state.flow = null;
+      state.editScreen = null;
+      state.editScreen2 = null;
+      state.register = null;
+      state.credit = null;
+      state.virtualSk = null;
+      state.newFeatures = null;
+      state._finalPayload = null;
 
-        // reset state
-        state.flow = null;
-        state.editScreen = null;
-        state.register = null;
-        state.credit = null;
-        state.virtualSk = null;
+      if (skRow) skRow.classList.remove("hidden");
+      const title = document.querySelector("#screen-existing .panel-title");
+      if (title) title.textContent = "Cliente existente → Datos del crédito";
 
-        // vuelve a mostrar SK row (por si veníamos de new_credit)
-        if (skRow) skRow.classList.remove("hidden");
+      // Reset UI del SK asignado
+      if (rowSkAssigned && uiSkAssigned) {
+        rowSkAssigned.classList.add("hidden");
+        uiSkAssigned.textContent = "—";
+      }
 
-        // restaura título
-        const title = document.querySelector("#screen-existing .panel-title");
-        if (title) title.textContent = "Cliente existente → Datos del crédito";
 
-        navigateTo("choice");
-      });
+      navigateTo("choice");
+    }
+
+    // Reemplaza handlers:
+    btnBackExisting.addEventListener("click", resetAll);
+    btnBackNew.addEventListener("click", resetAll);
+    btnHome.addEventListener("click", resetAll);
+    btnNewRequest.addEventListener("click", resetAll);
+    btnConfirmCancel.addEventListener("click", resetAll);
+
 
       // 1) Existing credit form
       formExisting.addEventListener("submit", (e) => {
@@ -1011,17 +1344,25 @@
           // payload final para /api/new-client/score
           confirmTitle.textContent = "Confirmar solicitud (nuevo cliente)";
           confirmSummary.innerHTML = buildSummaryRows([
-            { k:"SK virtual", v:String(state.virtualSk) },
+            { k:"SK virtual", v:String(v.payload.sk_id_curr) },
             { k:"Cantidad", v:`${state.credit.amt_credit.toFixed(2)} €` },
             { k:"Tipo", v:creditTypeLabel(state.credit.credit_type) }
           ]);
 
           state._finalPayload = {
-            sk_id_curr: state.virtualSk,
+            sk_id_curr: v.payload.sk_id_curr,
             amt_credit: state.credit.amt_credit,
             credit_type: state.credit.credit_type,
-            features: {}
+            features: state.newFeatures || {}
           };
+        }
+        // Mostrar botones extra solo si estamos en new_credit (ya hay cliente + estamos editando crédito)
+        if (state.flow === "new_credit") {
+          btnEditClient?.classList.remove("hidden");
+          btnEditCredit?.classList.remove("hidden");
+        } else {
+          btnEditClient?.classList.add("hidden");
+          btnEditCredit?.classList.add("hidden");
         }
 
         navigateTo("confirm");
@@ -1039,6 +1380,9 @@
 
         state.register = v.payload;
 
+        // ✅ GUARDAR FEATURES DEL MEGA-FORM
+        state.newFeatures = collectNewClientFeatures();
+
         confirmTitle.textContent = "Confirmar registro (nuevo cliente)";
         confirmSummary.innerHTML = buildSummaryRows([
           { k: "Nombre", v: state.register.full_name },
@@ -1046,35 +1390,41 @@
           { k: "Email", v: state.register.email },
           { k: "Teléfono", v: state.register.phone }
         ]);
-
+        // Mostrar botones extra solo si estamos en new_credit (ya hay cliente + estamos editando crédito)
+        if (state.flow === "new_credit") {
+          btnEditClient?.classList.remove("hidden");
+          btnEditCredit?.classList.remove("hidden");
+        } else {
+          btnEditClient?.classList.add("hidden");
+          btnEditCredit?.classList.add("hidden");
+        }
         navigateTo("confirm");
       });
 
-      btnConfirmEdit.addEventListener("click", () => {
+      // --- Botones "Editar cliente / Editar crédito" (se conectan UNA SOLA VEZ) ---
+      btnEditCredit?.addEventListener("click", () => {
         clearStatus(statusConfirm);
-        navigateTo(state.editScreen);
+        navigateTo("existing");
       });
 
-    btnConfirmCancel.addEventListener("click", () => {
-      clearStatus(statusExisting);
-      clearStatus(statusNew);
-      clearStatus(statusResult);
-      clearStatus(statusConfirm);
+      btnEditClient?.addEventListener("click", () => {
+        clearStatus(statusConfirm);
+        navigateTo("newClient");
+      });
 
-      // reset state (evita bugs raros al cambiar de flujo)
-      state.flow = null;
-      state.editScreen = null;
-      state.register = null;
-      state.credit = null;
-      state.virtualSk = null;
+      // --- Botón "← Editar" (sin popups) ---
+      btnConfirmEdit.addEventListener("click", () => {
+        clearStatus(statusConfirm);
 
-      // por si veníamos de new_credit (SK oculto)
-      if (skRow) skRow.classList.remove("hidden");
-      const title = document.querySelector("#screen-existing .panel-title");
-      if (title) title.textContent = "Cliente existente → Datos del crédito";
+        // En new_credit, "← Editar" te manda al crédito por defecto.
+        // Si quieres editar cliente, usas el botón "Editar cliente".
+        if (state.flow === "new_credit") {
+          navigateTo("existing");
+          return;
+        }
 
-      navigateTo("choice");
-    });
+        navigateTo(state.editScreen);
+      });
 
       // 3) Confirm send (según flujo)
       btnConfirmSend.addEventListener("click", async () => {
@@ -1083,17 +1433,28 @@
         setLoading(btnConfirmSend, true, "Enviando...");
 
         try {
+          // =========================
+          // 1) Cliente existente
+          // =========================
           if (state.flow === "existing") {
-            // scoring existing
             const res = await postJSON(ENDPOINTS.score, state._finalPayload);
             renderResultUI(res);
             navigateTo("result");
             return;
           }
 
+          // =========================
+          // 2) Registro nuevo cliente
+          //    (AQUÍ va el cambio)
+          // =========================
           if (state.flow === "new_register") {
-            // registrar
-            const reg = await postJSON(ENDPOINTS.newClientRegister, state.register);
+            // ✅ Ahora guardamos también las features del mega-form en el registro del backend
+            const regPayload = {
+              ...state.register,
+              features: state.newFeatures || {}
+            };
+
+            const reg = await postJSON(ENDPOINTS.newClientRegister, regPayload);
             const sk = reg?.sk_id_curr;
 
             if (!Number.isFinite(Number(sk))) {
@@ -1102,22 +1463,35 @@
 
             state.virtualSk = Number(sk);
 
-            // pasar a pedir crédito (reutiliza existing)
+            // Mostrar en la pantalla de Confirm el ID asignado
+            if (rowSkAssigned && uiSkAssigned) {
+              uiSkAssigned.textContent = String(state.virtualSk);
+              rowSkAssigned.classList.remove("hidden");
+            }
+
+            // Pasar a pedir crédito (reutiliza el formulario de 'existing')
             state.flow = "new_credit";
             state.editScreen = "existing";
+            state.editScreen2 = "newClient";
 
             if (skRow) skRow.classList.add("hidden"); // ocultar SK manual
             const title = document.querySelector("#screen-existing .panel-title");
             if (title) title.textContent = "Nuevo cliente → Datos del crédito";
 
-            // Aviso corto
-            setStatus(statusExisting, "ok", `Registro OK. SK virtual: ${state.virtualSk}. Ahora introduce el crédito.`);
+            setStatus(
+            statusExisting,
+            "ok",
+            `Registro OK.\nID asignado: ${state.virtualSk}\nAhora introduce el crédito.`
+          );
+
             navigateTo("existing");
             return;
           }
 
+          // =========================
+          // 3) Scoring nuevo cliente
+          // =========================
           if (state.flow === "new_credit") {
-            // scoring new client
             const res = await postJSON(ENDPOINTS.newClientScore, state._finalPayload);
             renderResultUI(res);
             navigateTo("result");
@@ -1131,6 +1505,131 @@
           setLoading(btnConfirmSend, false);
         }
       });
+
+
+      // =====================================
+// DEMO: Autocompletar 3 perfiles
+// (rellena mega-form + deja listo el crédito del siguiente paso)
+// =====================================
+function setVal(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = value;
+  // dispara validaciones UI si las tienes enganchadas a input/change
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function fillProfile(p) {
+  // Identificación
+  setVal("fullName", p.fullName);
+  setVal("dni", p.dni);
+  setVal("email", p.email);
+  setVal("phone", p.phone);
+
+  // Contrato (mega-form)
+  setVal("nc_contract_type", p.contractType); // "Cash loans" | "Revolving loans"
+  setVal("nc_annuity", p.annuity);
+  setVal("nc_goods_price", p.goodsPrice);
+
+  // Personal
+  setVal("nc_gender", p.gender); // "M" | "F"
+  setVal("nc_children", p.children);
+  setVal("nc_family_members", p.familyMembers);
+  setVal("nc_age_years", p.ageYears);
+  setVal("nc_car", p.ownCar);       // "Y" | "N"
+  setVal("nc_realty", p.ownRealty); // "Y" | "N"
+  setVal("nc_car_age", p.carAge);
+
+  // Financiera
+  setVal("nc_income", p.income);
+  setVal("nc_income_type", p.incomeType);
+
+  // Crédito del paso siguiente (form-existing)
+  // Nota: el "Tipo de crédito" en existing usa revolving_loans/cash_loans
+  setVal("amtCredit", p.creditAmount);
+  setVal("creditType", p.creditType); // "cash_loans" | "revolving_loans"
+}
+
+// 3 perfiles para demo (coherentes)
+const DEMO_PROFILES = {
+  good: {
+    fullName: "Ana Martínez López",
+    dni: "12345678Z",
+    email: "ana.martinez.demo@gmail.com",
+    phone: "611222333",
+    contractType: "Cash loans",
+    annuity: 4800,
+    goodsPrice: 12000,
+    gender: "F",
+    children: 0,
+    familyMembers: 1,
+    ageYears: 34,
+    ownCar: "N",
+    ownRealty: "Y",
+    carAge: 0,
+    income: 52000,
+    incomeType: "Working",
+    creditAmount: 9000,
+    creditType: "cash_loans",
+  },
+  mid: {
+    fullName: "Juan Pérez García",
+    dni: "87654321X",
+    email: "juan.perez.demo@gmail.com",
+    phone: "600123123",
+    contractType: "Cash loans",
+    annuity: 7200,
+    goodsPrice: 15000,
+    gender: "M",
+    children: 0,
+    familyMembers: 2,
+    ageYears: 29,
+    ownCar: "Y",
+    ownRealty: "N",
+    carAge: 6,
+    income: 28000,
+    incomeType: "Working",
+    creditAmount: 12000,
+    creditType: "cash_loans",
+  },
+  bad: {
+    fullName: "Carlos Gómez Ruiz",
+    dni: "11223344A",
+    email: "carlos.gomez.demo@gmail.com",
+    phone: "699888777",
+    contractType: "Revolving loans",
+    annuity: 14000,
+    goodsPrice: 25000,
+    gender: "M",
+    children: 3,
+    familyMembers: 5,
+    ageYears: 22,
+    ownCar: "Y",
+    ownRealty: "N",
+    carAge: 15,
+    income: 12000,
+    incomeType: "Unemployed",
+    creditAmount: 25000,
+    creditType: "revolving_loans",
+  },
+};
+
+// Botones
+document.getElementById("btn-fill-good")?.addEventListener("click", () => {
+  fillProfile(DEMO_PROFILES.good);
+  setStatus(statusNew, "ok", "Ejemplo BUENO cargado. Pulsa Continuar.");
+});
+
+document.getElementById("btn-fill-mid")?.addEventListener("click", () => {
+  fillProfile(DEMO_PROFILES.mid);
+  setStatus(statusNew, "ok", "Ejemplo MEDIO cargado. Pulsa Continuar.");
+});
+
+document.getElementById("btn-fill-bad")?.addEventListener("click", () => {
+  fillProfile(DEMO_PROFILES.bad);
+  setStatus(statusNew, "warn", "Ejemplo MALO cargado. Pulsa Continuar.");
+});
 
       // init (al final)
       loadFeatureLabels().finally(() => navigateTo("choice"));
