@@ -97,6 +97,7 @@ def _get_cb_feature_names(model: Any) -> List[str]:
 def _align_and_cast_for_catboost(user_df: pd.DataFrame, model: Any) -> pd.DataFrame:
     """
     Alinea columnas al orden exacto del modelo y fuerza categóricas según el modelo.
+    Fix real: en categóricas NO puede haber NaN/<NA>.
     """
     feats = _get_cb_feature_names(model)
 
@@ -115,10 +116,24 @@ def _align_and_cast_for_catboost(user_df: pd.DataFrame, model: Any) -> pd.DataFr
         except Exception:
             cat_idx = []
 
+    # --- FIX: CatBoost NO acepta NaN en cat_features ---
     for i in cat_idx:
         if 0 <= i < X.shape[1]:
             col = X.columns[i]
-            X[col] = X[col].astype("string").astype("category")
+
+            # 1) convertir a string SIN generar <NA> (rellenar primero)
+            s = X[col]
+
+            # NaN/None/<NA> -> "missing"
+            s = s.where(~pd.isna(s), "missing")
+
+            # Todo a string (incluye números)
+            s = s.astype(str)
+
+            # Por si quedaron "nan"/"None" como texto
+            s = s.replace({"nan": "missing", "None": "missing", "NaT": "missing"})
+
+            X[col] = s  # <- object/string OK para CatBoost
 
     return X
 
