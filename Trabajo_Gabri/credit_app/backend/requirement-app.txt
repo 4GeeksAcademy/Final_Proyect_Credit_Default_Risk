@@ -1,8 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 pandas
 numpy
 joblib
+jinja2
+catboost
 shap
 sqlalchemy
