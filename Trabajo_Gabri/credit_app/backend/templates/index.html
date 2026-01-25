@@ -56,11 +56,28 @@
     }
     *{box-sizing:border-box}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+       margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
       background: radial-gradient(1000px 700px at 20% 10%, #142241 0%, transparent 55%),
                   radial-gradient(900px 650px at 90% 30%, #1b2c54 0%, transparent 50%),
                   var(--bg);
-      color:var(--text); min-height:100vh; display:grid; place-items:center; padding:24px;
+      color:var(--text);
+      min-height:100vh;
+      padding:24px;
+    }
+    #app{
+      width:100%;
+      min-height: calc(100vh - 48px); /* 24px top + 24px bottom del body */
+      display:grid;
+      place-items:center;
+    }
+
+    #presentation{
+      width:100%;
+      min-height: calc(100vh - 48px);
+      display:grid;
+      place-items:center;
+      padding:24px 0;
     }
     .container{width:100%; max-width:920px}
     h1{margin:0 0 10px; font-size:22px}
@@ -341,11 +358,383 @@
       .result-hero{grid-template-columns:1fr}
       .split{grid-template-columns:1fr}
     }
+
+    /* =========================
+   Presentation toggle (UI)
+   ========================= */
+.top-fab{
+  position:fixed;
+  top:16px;
+  right:16px;
+  z-index:1000;
+}
+.btn-mini{
+  padding:8px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.2px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid var(--border);
+  color:var(--text);
+  cursor:pointer;
+  transition:transform .12s ease, border-color .12s ease, opacity .12s ease;
+}
+.btn-mini:hover{ transform:translateY(-1px); border-color:rgba(255,255,255,0.25); }
+.btn-mini:active{ transform:translateY(0px); }
+
+.presentation-wrap{
+  width:100%;
+  max-width:1100px;
+  margin:0 auto;
+}
+.presentation-card{
+  background:linear-gradient(180deg,var(--card) 0%,var(--card2) 100%);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:18px;
+}
+.presentation-card h2{
+  margin:0 0 10px;
+  font-size:18px;
+  font-weight:900;
+}
+.presentation-content{
+  color:rgba(232,238,252,.92);
+  line-height:1.55;
+  font-size:14px;
+}
+.presentation-content img{
+  max-width:100%;
+  border-radius:12px;
+  border:1px solid var(--border);
+  display:block;
+  margin:14px auto;
+}
+.presentation-actions{
+  display:flex;
+  justify-content:center;
+  margin-top:16px;
+}
+
+/* ===== Presentation: tables like docs ===== */
+.pres-block{ margin-top:18px; }
+.pres-h3{ margin:0 0 10px; font-size:20px; font-weight:900; }
+.pres-h4{ margin:14px 0 8px; font-size:14px; font-weight:900; color:rgba(232,238,252,.92); }
+.pres-note{ color:rgba(232,238,252,.86); line-height:1.55; margin:0 0 8px; }
+
+.auc-list{ margin:6px 0 10px 18px; padding:0; }
+.auc-list li{ margin:0; color:rgba(232,238,252,.92); font-weight:800; }
+.auc-list strong{ font-weight:900; }
+
+.pres-table{
+  width:100%;
+  border-collapse:collapse;
+  margin:10px 0 18px;
+  background:rgba(0,0,0,0.18);
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+}
+.pres-table th, .pres-table td{
+  padding:10px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.10);
+  text-align:left;
+  font-size:13px;
+}
+.pres-table th{
+  font-weight:900;
+  color:rgba(232,238,252,.95);
+  background:rgba(255,255,255,0.05);
+}
+.pres-table td{ color:rgba(232,238,252,.90); font-weight:700; }
+.pres-table tr:last-child td{ border-bottom:none; }
+
   </style>
 </head>
 
 <body>
-  <main class="container">
+   <!-- Botón pequeño fijo -->
+  <div class="top-fab">
+    <button class="btn-mini" id="btn-presentation" type="button">📽️ Presentación</button>
+  </div>
+
+  <!-- PRESENTACIÓN (oculta por defecto) -->
+  <section id="presentation" class="hidden presentation-wrap" aria-label="Presentación">
+    <div class="presentation-card">
+      <h2>Presentación del proyecto</h2>
+
+<div class="presentation-content" id="presentation-content">
+
+  <h2 style="margin-top:0">Proyecto de Modelo de predicción de Riesgo Crediticio</h2>
+
+  <p>
+    El objetivo de este proyecto es desarrollar un modelo predictivo capaz de estimar la probabilidad de default de un solicitante y,
+    al mismo tiempo, proporcionar explicabilidad caso por caso. Esto permite comprender con mayor precisión los factores que influyen
+    en la decisión y fundamentar cada evaluación crediticia con información clara y transparente.
+  </p>
+
+  <p>
+    Además, este enfoque no solo aporta valor analítico, sino que también responde a las exigencias regulatorias vigentes en la Unión Europea,
+    que han establecido límites explícitos al uso de algoritmos opacos o de “caja negra” en decisiones automatizadas que afectan significativamente
+    a las personas. En particular, el Artículo 22 del Reglamento General de Protección de Datos (GDPR) establece que los individuos tienen derecho
+    a no ser objeto de decisiones basadas únicamente en procesos automatizados cuando estas produzcan efectos legales o de impacto significativo,
+    y abre la puerta a un derecho a explicación.
+  </p>
+
+  <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
+
+  <h3>Exploración inicial del dataset</h3>
+  <p>
+    Antes de construir el modelo, realizamos un análisis exploratorio para comprender la estructura de los datos, detectar patrones relevantes y
+    evaluar la calidad de la información disponible. Este paso fue clave para identificar relaciones entre variables, posibles sesgos y transformaciones
+    necesarias para el modelado.
+  </p>
+  <p>
+    Uno de los primeros hallazgos fue que el dataset presenta un fuerte desbalance: la gran mayoría de los clientes pagaron correctamente mientras que
+    solo una minoría incurrió en default. Este desbalance condiciona el enfoque del modelado y obliga a utilizar métricas adecuadas para evaluar el desempeño
+    del modelo.
+  </p>
+
+  <img src="/static/presentation/output.png" alt="Ingresos vs Target" />
+
+
+  <h3>Análisis de variables socioeconómicas</h3>
+  <p>
+    Durante el análisis exploratorio se estudiaron distintas características demográficas y financieras de los solicitantes. Algunas observaciones destacadas fueron:
+  </p>
+
+  <h4 style="margin-bottom:6px">Diferencias por género</h4>
+  <p>
+    Los datos muestran que los hombres presentan una mayor probabilidad de incurrir en default en comparación con las mujeres. Si bien la diferencia no es extrema,
+    sí es consistente a lo largo de distintos rangos de edad e ingresos, lo que sugiere un patrón relevante para el análisis de riesgo.
+  </p>
+  <img src="/static/presentation/genero.png" alt="Diferencias por género" />
+
+  <h4 style="margin-bottom:6px">Relación entre edad y riesgo</h4>
+  <p>
+    Se observa una relación inversa entre la edad y la tasa de default: a medida que aumenta la edad del solicitante, la probabilidad de default tiende a disminuir.
+    Este comportamiento puede estar asociado a mayor estabilidad laboral, ingresos más consolidados o menor propensión al endeudamiento en edades avanzadas.
+  </p>
+
+  <!-- Si renombraste el archivo, usa montanas_tarjet.png -->
+  <img src="/static/presentation/target.png" alt="Exploración inicial / desbalance" />
+
+  <h4 style="margin-bottom:6px">Relación entre monto del Crédito y Target</h4>
+  <p>
+    Lo interesante es que la proporción de clientes en default no es uniforme a lo largo del eje de crédito: en los montos más bajos, la tasa de default es relativamente baja.
+    En los montos intermedios (por ejemplo, entre 300 000 y 600 000), se observa un aumento en la frecuencia relativa de default.
+    En los montos más altos, la tasa vuelve a bajar, posiblemente porque esos clientes tienen mayor solvencia o mejores perfiles crediticios.
+  </p>
+  <p>
+    Este patrón sugiere que la relación entre monto del crédito y riesgo no es lineal. No se puede afirmar que “a mayor crédito, mayor riesgo” ni lo contrario.
+    Hay un rango crítico donde el riesgo se intensifica.
+  </p>
+  <img src="/static/presentation/montanas.png" alt="Monto del crédito vs Target" />
+
+  <h4 style="margin-bottom:6px">Relación entre Ingresos y target</h4>
+  <p>
+    Este gráfico revela una tendencia: los clientes con mayores niveles de ingreso tienden a presentar una menor probabilidad de incurrir en default.
+    Este comportamiento es coherente con la lógica financiera, ya que una mayor capacidad de pago suele estar asociada a un menor riesgo crediticio.
+  </p>
+  <p>
+    No obstante, el gráfico también evidencia que el ingreso no constituye una garantía absoluta. Se observan casos de default incluso en rangos medios de ingreso,
+    lo que sugiere que el riesgo crediticio está influido por múltiples factores.
+  </p>
+  <img src="/static/presentation/mantas.png" alt="Exploración inicial / desbalance" />
+
+  <h4 style="margin-bottom:6px">Relación entre el día que pide el crédito y Target</h4>
+  <p>
+    Existe una relación entre el día de la semana que se pide el crédito y la taza de default. Este patrón sugiere que el día de la semana en que se solicita el crédito
+    podría aportar información adicional sobre el perfil de riesgo del solicitante. Aunque no es una variable causal directa, puede funcionar como un indicador complementario
+    en el modelo.
+  </p>
+<img src="/static/presentation/dias de la semana.png" alt="Exploración inicial / desbalance" />
+
+  <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
+
+<div class="pres-block">
+  <h3 class="pres-title">Pruebas</h3>
+
+  <p class="pres-subtitle">Primeras pruebas con el Dataset crudo en XGBoost:</p>
+  <ul class="auc-list">
+    <li><strong>AUC Score:</strong> 0.7805</li>
+  </ul>
+
+  <table class="pres-table" aria-label="Métricas XGBoost crudo">
+    <thead>
+      <tr>
+        <th>Clase</th>
+        <th>Precision</th>
+        <th>Recall</th>
+        <th>F1Score</th>
+        <th>Support</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Paga</td>
+        <td>0.95</td>
+        <td>0.90</td>
+        <td>0.92</td>
+        <td>56538</td>
+      </tr>
+      <tr>
+        <td>No paga</td>
+        <td>0.28</td>
+        <td>0.42</td>
+        <td>0.33</td>
+        <td>4965</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
+  <p class="pres-note">
+    El dataset tenía outliers (datos extremadamente altos o bajos) y columnas que no eran importantes para el entrenamiento del modelo.
+  </p>
+
+  <p class="pres-subtitle">Limpiando el Dataset y con un primer intento de balancear el dataset obtuvimos estos resultados:</p>
+  <ul class="auc-list">
+    <li><strong>AUC Score:</strong> 0.77509</li>
+  </ul>
+
+  <table class="pres-table" aria-label="Métricas limpieza + balanceo (intento 1)">
+    <thead>
+      <tr>
+        <th>Clase</th>
+        <th>Precision</th>
+        <th>Recall</th>
+        <th>F1Score</th>
+        <th>Support</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Paga</td>
+        <td>0.96</td>
+        <td>0.80</td>
+        <td>0.84</td>
+        <td>61503</td>
+      </tr>
+      <tr>
+        <td>No paga</td>
+        <td>0.21</td>
+        <td>0.60</td>
+        <td>0.31</td>
+        <td>61503</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
+  <p class="pres-note">
+    La técnica de balanceo inicial no fue la adecuada, así que probamos otra estrategia y detectamos qué variables afectaban más al modelo.
+  </p>
+
+  <p class="pres-note">
+    Agregamos columnas para aportar más granularidad, probamos CatBoost y LightGBM, y usamos Optuna para optimizar y comparar modelos.
+  </p>
+
+  <ul class="auc-list">
+    <li><strong>AUC Score:</strong> 0.7781</li>
+  </ul>
+
+  <table class="pres-table" aria-label="Métricas con nuevas features + Optuna">
+    <thead>
+      <tr>
+        <th>Clase</th>
+        <th>Precision</th>
+        <th>Recall</th>
+        <th>F1Score</th>
+        <th>Support</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Paga</td>
+        <td>0.97</td>
+        <td>0.65</td>
+        <td>0.78</td>
+        <td>46061</td>
+      </tr>
+      <tr>
+        <td>No paga</td>
+        <td>0.17</td>
+        <td>0.78</td>
+        <td>0.29</td>
+        <td>4367</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
+  <p class="pres-note">
+    La optimización todavía era mejorable; los resultados podían subir.
+  </p>
+
+  <p class="pres-note">
+    Tras múltiples iteraciones con distintos modelos y técnicas de optimización, el mejor resultado se obtuvo con CatBoost.
+  </p>
+
+  <ul class="auc-list">
+    <li><strong>AUC Score:</strong> 0.81331</li>
+  </ul>
+
+  <table class="pres-table" aria-label="Métricas finales CatBoost">
+    <thead>
+      <tr>
+        <th>Clase</th>
+        <th>Precision</th>
+        <th>Recall</th>
+        <th>F1Score</th>
+        <th>Support</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Paga</td>
+        <td>0.97</td>
+        <td>0.74</td>
+        <td>0.84</td>
+        <td>138182</td>
+      </tr>
+      <tr>
+        <td>No paga</td>
+        <td>0.21</td>
+        <td>0.73</td>
+        <td>0.33</td>
+        <td>13101</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+  <h3>Mejoras</h3>
+  <ul>
+    <li><strong>Integración con SQL para acelerar la búsqueda de usuarios</strong>
+      <ul>
+        <li>Profesionaliza el proyecto: pasás de trabajar con CSVs a una base de datos real.</li>
+        <li>Permite consultas más rápidas, especialmente si el dataset es grande.</li>
+        <li>Facilita filtrar usuarios por: ID, ingresos, historial crediticio, features del modelo.</li>
+        <li>Te abre la puerta a usar índices, vistas y joins.</li>
+      </ul>
+    </li>
+    <li><strong>Modelo de recomendación KNN para sugerir mejoras al usuario</strong>
+      <ul>
+        <li>“Usuarios similares a ti mejoraron su score aumentando X”</li>
+        <li>“Tu probabilidad de default bajaría si reduces Y”</li>
+        <li>Transforma el modelo en una herramienta de apoyo y no solo de evaluación.</li>
+      </ul>
+    </li>
+  </ul>
+
+</div>
+        </section>
+
+  <!-- APP (tu contenido actual) -->
+  <section id="app">
+    <main class="container">
     <h1>Solicitud de crédito</h1>
     <p class="subtitle">Frontend conectado a FastAPI (scoring existente + registro nuevo). Explicación visual para demo.</p>
 
@@ -704,11 +1093,33 @@
         <button class="btn" id="btn-new-request" type="button">Nueva operación</button>
       </div>
     </section>
-  </main>
+   </main>
+  </section>
 
     <script>
       // "" = mismo host/puerto (recomendado). null = demo.
+      let lastScreen = "choice";
       const API_BASE = "";
+
+      // =====================================
+      // Presentation toggle
+      // =====================================
+      function showPresentation(){
+        document.getElementById("app")?.classList.add("hidden");
+        document.getElementById("presentation")?.classList.remove("hidden");
+        document.querySelector(".top-fab")?.classList.add("hidden");
+        window.scrollTo(0, 0);
+      }
+
+      function showApp(){
+        document.getElementById("presentation")?.classList.add("hidden");
+        document.getElementById("app")?.classList.remove("hidden");
+        document.querySelector(".top-fab")?.classList.remove("hidden");
+        window.scrollTo(0, 0);
+
+        navigateTo(lastScreen || "choice");
+      }
+
 
       const ENDPOINTS = {
         score: "/api/score",
@@ -853,6 +1264,9 @@
 
       const confirmTitle = document.getElementById("confirm-title");
       const confirmSummary = document.getElementById("confirm-summary");
+      // Botones presentación
+      document.getElementById("btn-presentation")?.addEventListener("click", showPresentation);
+      document.getElementById("btn-back-to-demo")?.addEventListener("click", showApp);
 
       // UI: mostrar SK asignado tras registrar nuevo cliente
     const rowSkAssigned = document.getElementById("row-sk-assigned");
@@ -896,6 +1310,8 @@
         if (name === "existing" || name === "newClient") setStep(1);
         if (name === "confirm") setStep(2);
         if (name === "result") setStep(3);
+
+        lastScreen = name;
       }
 
       function setStatus(el, type, msg) {

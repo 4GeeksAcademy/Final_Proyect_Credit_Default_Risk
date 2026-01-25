@@ -35,6 +35,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from feature_labels import COLUMN_MAPPING_UI
+from fastapi.staticfiles import StaticFiles
 
 
 # =============================================================================
@@ -332,6 +333,14 @@ def _create_or_get_virtual_sk(full_name: str, dni: str, email: str, phone: str, 
 app = FastAPI(title="Credit Risk API", version="1.2")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# =============================================================================
+# Static files (CSS/IMG/JS)
+# =============================================================================
+STATIC_DIR = BASE_DIR / "static"
+if not STATIC_DIR.exists():
+    raise RuntimeError(f"Static dir no existe: {STATIC_DIR}")
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # =============================================================================
 # Frontend helpers
