@@ -194,7 +194,7 @@ def get_model():
 # =============================================================================
 # Public API
 # =============================================================================
-def search_user(sk_id: int, ammount: float, credit_type: str) -> pd.DataFrame:
+def search_user(sk_id: int, ammount: float, credit_type: str, annuity: float, goods_price: float) -> pd.DataFrame:
     """
     Cliente existente:
     - Busca SK_ID_CURR en el dataset
@@ -224,6 +224,16 @@ def search_user(sk_id: int, ammount: float, credit_type: str) -> pd.DataFrame:
     else:
         user["NAME_CONTRACT_TYPE"] = credit_type
 
+    if "AMT_ANNUITY" in user.columns:
+        user["AMT_ANNUITY"] = annuity
+    else:
+        user["AMT_ANNUITY"] = annuity
+
+    if "AMT_GOODS_PRICE" in user.columns:
+        user["AMT_GOODS_PRICE"] = goods_price
+    else:
+        user["AMT_GOODS_PRICE"] = goods_price
+    
     original_dtypes, cat_columns = _infer_cat_columns_from_db(db)
 
     # drop ID/TARGET antes de tipar (contrato de input)
@@ -423,4 +433,5 @@ def format_shap_for_frontend(
         "enabled": bool(enabled),
         "top_risk_increasing": inc,
         "top_risk_decreasing": dec,
+
     }
