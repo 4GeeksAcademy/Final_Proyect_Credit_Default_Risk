@@ -132,6 +132,6 @@ Iago Rivadulla, Agustin Marquez y Gabriel De Almeida
 
 ## 📧 Contacto
 
-- Iago Rivadulla: (link github)
-- Agustin Marquez: (link github)
-- Gabriel De Almeida: (link github)
+- Iago Rivadulla: ([github](https://github.com/GabrielDeAlmeidaSantos))
+- Agustin Marquez: ([github](https://github.com/agumarquez10))
+- Gabriel De Almeida: ([github](https://github.com/iagorivadulla))
