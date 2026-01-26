@@ -226,7 +226,7 @@ IAGO_DIR = REPO_ROOT / "Trabajo_Iago"
 
 # Dataset en TU backend (según tu estructura)
 DATA_DIR = BASE_DIR / "assets" / "data"
-DATA_FILE = DATA_FILE = load_dataset("csv",
+DATA_FILE = load_dataset("csv",
     data_files="https://huggingface.co/datasets/jamirc/home_credit_default_risk/resolve/main/home_credit_train_ready.csv",
     split="train").to_pandas()
 
