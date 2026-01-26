@@ -19,3 +19,5 @@ joblib
 tqdm
 shap
 catboost
+uvicorn
+fastapi
