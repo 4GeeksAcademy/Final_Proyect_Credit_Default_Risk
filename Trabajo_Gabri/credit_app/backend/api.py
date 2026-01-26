@@ -183,6 +183,26 @@ def _norm_email(s: str) -> str:
 def _norm_phone(s: str) -> str:
     return re.sub(r"\D+", "", (s or "").strip())
 
+def _estimate_payoff(amt_credit: float, annuity: float) -> Dict[str, Any]:
+    """
+    Estimación simple (sin intereses):
+    - Si AMT_ANNUITY es cuota mensual (lo habitual en Home Credit),
+      meses ~= crédito / cuota.
+    """
+    if not np.isfinite(amt_credit) or amt_credit <= 0:
+        return {"ok": False, "reason": "amt_credit inválido"}
+    if not np.isfinite(annuity) or annuity <= 0:
+        return {"ok": False, "reason": "annuity inválida"}
+
+    months = round(float(amt_credit) / float(annuity), 1)
+    years = round(months / 12.0, 2)
+
+    return {
+        "ok": True,
+        "months": months,
+        "years": years,
+        "note": "Estimación simple sin intereses. Asume AMT_ANNUITY como cuota mensual.",
+    }
 
 def _guess_default_for_feature(name: str, dtype: str) -> Any:
     """
@@ -358,6 +378,8 @@ class ScoreRequest(BaseModel):
     sk_id_curr: int = Field(..., gt=0)
     amt_credit: float = Field(..., gt=0)
     credit_type: CreditType
+    annuity: float = Field(..., gt=0, description="AMT_ANNUITY (cuota). Para estimar tiempo de pago.")
+    goods_price: Optional[float] = Field(default=None, gt=0, description="AMT_GOODS_PRICE (opcional).")
 
 
 class NewClientRegisterRequest(BaseModel):
@@ -388,6 +410,8 @@ class NewClientScoreRequest(BaseModel):
     amt_credit: float = Field(..., gt=0)
     credit_type: CreditType
     features: Dict[str, Any] = Field(default_factory=dict)
+    annuity: float = Field(..., gt=0, description="AMT_ANNUITY (cuota).")
+    goods_price: Optional[float] = Field(default=None, gt=0, description="AMT_GOODS_PRICE (opcional).")
 
 
 # =============================================================================
@@ -522,26 +546,32 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
     # 3) Construir usuario con pipeline del compañero (cliente existente)
     if not hasattr(iago_fn, "search_user"):
         raise HTTPException(status_code=500, detail="Trabajo_Iago/functions.py no tiene search_user().")
+    
+    goods_price = float(req.goods_price) if req.goods_price is not None else 0.0
 
     try:
         user = iago_fn.search_user(
             sk_id=req.sk_id_curr,
             ammount=req.amt_credit,
             credit_type=contract,
+            annuity=req.annuity,
+            goods_price=goods_price,
         )
+    except TypeError as e:
+        raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Tu Trabajo_Iago/functions.py no coincide con la firma esperada de search_user(). "
+                    f"Error: {e}"
+                ),
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en search_user(): {e}")
 
     if user is None or getattr(user, "empty", False):
         raise HTTPException(status_code=404, detail=f"SK_ID_CURR {req.sk_id_curr} no existe en el dataset.")
 
-    # 4) Fix CatBoost: alinear + categóricas
-    try:
-        user = _align_and_cast_for_catboost(user, model)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Input preparation falló: {e}")
-
-    # 5) Predicción
+    # 4) Predicción
     if not hasattr(iago_fn, "predict"):
         raise HTTPException(status_code=500, detail="Trabajo_Iago/functions.py no tiene predict().")
 
@@ -551,11 +581,11 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Predict falló: {e}")
 
-    # 6) Decisión
+    # 5) Decisión
     threshold = 0.60
     decision = "REJECT" if p_default >= threshold else "APPROVE"
 
-    # 7) SHAP
+    # 6) SHAP
     shap_block: Dict[str, Any]
     if hasattr(iago_fn, "explain"):
         try:
@@ -580,6 +610,8 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
             "top_risk_decreasing": [],
         }
 
+    payoff = _estimate_payoff(req.amt_credit, req.annuity)
+    
     return {
         "mode": "existing_client",
         "sk_id_curr": req.sk_id_curr,
@@ -588,10 +620,13 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
             "amt_credit": req.amt_credit,
             "credit_type": req.credit_type,
             "name_contract_type": contract,
+            "annuity": req.annuity,
+            "goods_price": req.goods_price,
         },
         "proba": {"no_default": 1.0 - p_default, "default": p_default},
         "decision": decision,
         "threshold": threshold,
+        "payoff": payoff,
         "shap": shap_block,
     }
 
@@ -632,6 +667,10 @@ def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
     # 3.2) Forzar campos clave del crédito (siempre manda el backend)
     feats["AMT_CREDIT"] = req.amt_credit
     feats["NAME_CONTRACT_TYPE"] = contract
+    feats["AMT_ANNUITY"] = req.annuity
+    if req.goods_price is not None:
+        feats["AMT_GOODS_PRICE"] = float(req.goods_price)
+
 
     # 3.3) Si quieres “rellenar” automáticamente lo que falte (útil si el form dinámico no manda todo),
     #     usamos el schema del dataset para defaults num/cat.
@@ -704,6 +743,8 @@ def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
             "top_risk_decreasing": [],
         }
 
+    payoff = _estimate_payoff(req.amt_credit, req.annuity)
+
     return {
         "mode": "new_client",
         "sk_id_curr": req.sk_id_curr,
@@ -712,11 +753,14 @@ def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
             "amt_credit": req.amt_credit,
             "credit_type": req.credit_type,
             "name_contract_type": contract,
+            "annuity": req.annuity,
+            "goods_price": req.goods_price,
             "features_sent": list((req.features or {}).keys()),
             "features_from_register": list(stored_features.keys()) if stored_features else [],
         },
         "proba": {"no_default": 1.0 - p_default, "default": p_default},
         "decision": decision,
         "threshold": threshold,
+        "payoff": payoff,
         "shap": shap_block,
     }

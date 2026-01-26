@@ -459,279 +459,146 @@
     <button class="btn-mini" id="btn-presentation" type="button">📽️ Presentación</button>
   </div>
 
-  <!-- PRESENTACIÓN (oculta por defecto) -->
-  <section id="presentation" class="hidden presentation-wrap" aria-label="Presentación">
-    <div class="presentation-card">
-      <h2>Presentación del proyecto</h2>
+   <!-- PRESENTACIÓN (oculta por defecto) -->
+  <section id="presentation" class="hidden" aria-label="Presentación">
+    <div class="presentation-wrap">
+      <div class="presentation-card">
+        <div class="panel-header" style="margin-bottom:10px;">
+          <h2 style="margin:0;font-size:18px;font-weight:900;">Presentación del proyecto</h2>
+          <button class="btn btn-primary" id="btn-back-to-demo" type="button">← Volver a la demo</button>
+        </div>
 
-<div class="presentation-content" id="presentation-content">
+        <div class="presentation-content" id="presentation-content">
 
-  <h2 style="margin-top:0">Proyecto de Modelo de predicción de Riesgo Crediticio</h2>
+          <h3 class="pres-h3" style="margin-top:0;">Modelo de predicción de Riesgo Crediticio</h3>
 
-  <p>
-    El objetivo de este proyecto es desarrollar un modelo predictivo capaz de estimar la probabilidad de default de un solicitante y,
-    al mismo tiempo, proporcionar explicabilidad caso por caso. Esto permite comprender con mayor precisión los factores que influyen
-    en la decisión y fundamentar cada evaluación crediticia con información clara y transparente.
-  </p>
+          <p class="pres-note">
+            El objetivo de este proyecto es desarrollar un modelo predictivo capaz de estimar la probabilidad de default de un solicitante y,
+            al mismo tiempo, proporcionar explicabilidad caso por caso. Esto permite comprender con mayor precisión los factores que influyen
+            en la decisión y fundamentar cada evaluación crediticia con información clara y transparente.
+          </p>
 
-  <p>
-    Además, este enfoque no solo aporta valor analítico, sino que también responde a las exigencias regulatorias vigentes en la Unión Europea,
-    que han establecido límites explícitos al uso de algoritmos opacos o de “caja negra” en decisiones automatizadas que afectan significativamente
-    a las personas. En particular, el Artículo 22 del Reglamento General de Protección de Datos (GDPR) establece que los individuos tienen derecho
-    a no ser objeto de decisiones basadas únicamente en procesos automatizados cuando estas produzcan efectos legales o de impacto significativo,
-    y abre la puerta a un derecho a explicación.
-  </p>
+          <p class="pres-note">
+            Además, este enfoque responde a exigencias regulatorias (p.ej. derecho a no ser objeto de decisiones únicamente automatizadas y
+            necesidad de explicación en decisiones con impacto significativo).
+          </p>
 
-  <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
+          <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
 
-  <h3>Exploración inicial del dataset</h3>
-  <p>
-    Antes de construir el modelo, realizamos un análisis exploratorio para comprender la estructura de los datos, detectar patrones relevantes y
-    evaluar la calidad de la información disponible. Este paso fue clave para identificar relaciones entre variables, posibles sesgos y transformaciones
-    necesarias para el modelado.
-  </p>
-  <p>
-    Uno de los primeros hallazgos fue que el dataset presenta un fuerte desbalance: la gran mayoría de los clientes pagaron correctamente mientras que
-    solo una minoría incurrió en default. Este desbalance condiciona el enfoque del modelado y obliga a utilizar métricas adecuadas para evaluar el desempeño
-    del modelo.
-  </p>
+          <h3 class="pres-h3">Exploración inicial del dataset</h3>
+          <p class="pres-note">
+            Analizamos estructura, calidad, patrones y desbalance de clases (muchos “pagan”, pocos “no pagan”).
+          </p>
+          <img src="/static/presentation/output.png" alt="Ingresos vs Target" />
 
-  <img src="/static/presentation/output.png" alt="Ingresos vs Target" />
+          <h3 class="pres-h3">Variables socioeconómicas</h3>
 
+          <h4 class="pres-h4">Diferencias por género</h4>
+          <p class="pres-note">
+            Se observa una diferencia consistente entre géneros en la tasa de default.
+          </p>
+          <img src="/static/presentation/genero.png" alt="Diferencias por género" />
 
-  <h3>Análisis de variables socioeconómicas</h3>
-  <p>
-    Durante el análisis exploratorio se estudiaron distintas características demográficas y financieras de los solicitantes. Algunas observaciones destacadas fueron:
-  </p>
+          <h4 class="pres-h4">Edad vs riesgo</h4>
+          <p class="pres-note">
+            Relación inversa: mayor edad, menor probabilidad de default (tendencia general).
+          </p>
+          <img src="/static/presentation/target.png" alt="Edad y riesgo / desbalance" />
 
-  <h4 style="margin-bottom:6px">Diferencias por género</h4>
-  <p>
-    Los datos muestran que los hombres presentan una mayor probabilidad de incurrir en default en comparación con las mujeres. Si bien la diferencia no es extrema,
-    sí es consistente a lo largo de distintos rangos de edad e ingresos, lo que sugiere un patrón relevante para el análisis de riesgo.
-  </p>
-  <img src="/static/presentation/genero.png" alt="Diferencias por género" />
+          <h4 class="pres-h4">Monto del crédito vs target</h4>
+          <p class="pres-note">
+            La relación no es lineal: hay rangos intermedios donde el riesgo sube y luego puede bajar.
+          </p>
+          <img src="/static/presentation/montanas.png" alt="Monto del crédito vs Target" />
 
-  <h4 style="margin-bottom:6px">Relación entre edad y riesgo</h4>
-  <p>
-    Se observa una relación inversa entre la edad y la tasa de default: a medida que aumenta la edad del solicitante, la probabilidad de default tiende a disminuir.
-    Este comportamiento puede estar asociado a mayor estabilidad laboral, ingresos más consolidados o menor propensión al endeudamiento en edades avanzadas.
-  </p>
+          <h4 class="pres-h4">Ingresos vs target</h4>
+          <p class="pres-note">
+            A mayor ingreso suele bajar el riesgo, pero no es garantía absoluta.
+          </p>
+          <img src="/static/presentation/mantas.png" alt="Ingresos vs Target" />
 
-  <img src="/static/presentation/target.png" alt="Exploración inicial / desbalance" />
+          <h4 class="pres-h4">Día de solicitud vs target</h4>
+          <p class="pres-note">
+            Puede aportar señal complementaria (no causal).
+          </p>
+          <img src="/static/presentation/dias%20de%20la%20semana.png" alt="Día de la semana vs target" />
 
-  <h4 style="margin-bottom:6px">Relación entre monto del Crédito y Target</h4>
-  <p>
-    Lo interesante es que la proporción de clientes en default no es uniforme a lo largo del eje de crédito: en los montos más bajos, la tasa de default es relativamente baja.
-    En los montos intermedios (por ejemplo, entre 300 000 y 600 000), se observa un aumento en la frecuencia relativa de default.
-    En los montos más altos, la tasa vuelve a bajar, posiblemente porque esos clientes tienen mayor solvencia o mejores perfiles crediticios.
-  </p>
-  <p>
-    Este patrón sugiere que la relación entre monto del crédito y riesgo no es lineal. No se puede afirmar que “a mayor crédito, mayor riesgo” ni lo contrario.
-    Hay un rango crítico donde el riesgo se intensifica.
-  </p>
-  <img src="/static/presentation/montanas.png" alt="Monto del crédito vs Target" />
+          <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
 
-  <h4 style="margin-bottom:6px">Relación entre Ingresos y target</h4>
-  <p>
-    Este gráfico revela una tendencia: los clientes con mayores niveles de ingreso tienden a presentar una menor probabilidad de incurrir en default.
-    Este comportamiento es coherente con la lógica financiera, ya que una mayor capacidad de pago suele estar asociada a un menor riesgo crediticio.
-  </p>
-  <p>
-    No obstante, el gráfico también evidencia que el ingreso no constituye una garantía absoluta. Se observan casos de default incluso en rangos medios de ingreso,
-    lo que sugiere que el riesgo crediticio está influido por múltiples factores.
-  </p>
-  <img src="/static/presentation/mantas.png" alt="Exploración inicial / desbalance" />
+          <div class="pres-block">
+            <h3 class="pres-h3">Pruebas y evolución del modelo</h3>
 
-  <h4 style="margin-bottom:6px">Relación entre el día que pide el crédito y Target</h4>
-  <p>
-    Existe una relación entre el día de la semana que se pide el crédito y la taza de default. Este patrón sugiere que el día de la semana en que se solicita el crédito
-    podría aportar información adicional sobre el perfil de riesgo del solicitante. Aunque no es una variable causal directa, puede funcionar como un indicador complementario
-    en el modelo.
-  </p>
-<img src="/static/presentation/dias de la semana.png" alt="Exploración inicial / desbalance" />
+            <p class="pres-note">Primeras pruebas con XGBoost (dataset crudo):</p>
+            <ul class="auc-list"><li><strong>AUC:</strong> 0.7805</li></ul>
 
-  <hr style="border:0;border-top:1px solid rgba(255,255,255,0.12); margin:16px 0" />
+            <table class="pres-table" aria-label="Métricas XGBoost crudo">
+              <thead>
+                <tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1Score</th><th>Support</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Paga</td><td>0.95</td><td>0.90</td><td>0.92</td><td>56538</td></tr>
+                <tr><td>No paga</td><td>0.28</td><td>0.42</td><td>0.33</td><td>4965</td></tr>
+              </tbody>
+            </table>
 
-<div class="pres-block">
-  <h3 class="pres-title">Pruebas</h3>
+            <h4 class="pres-h4">Problema</h4>
+            <p class="pres-note">Outliers + columnas poco útiles → limpiamos y reintentamos.</p>
 
-  <p class="pres-subtitle">Primeras pruebas con el Dataset crudo en XGBoost:</p>
-  <ul class="auc-list">
-    <li><strong>AUC Score:</strong> 0.7805</li>
-  </ul>
+            <p class="pres-note">Limpieza + primer balanceo:</p>
+            <ul class="auc-list"><li><strong>AUC:</strong> 0.77509</li></ul>
 
-  <table class="pres-table" aria-label="Métricas XGBoost crudo">
-    <thead>
-      <tr>
-        <th>Clase</th>
-        <th>Precision</th>
-        <th>Recall</th>
-        <th>F1Score</th>
-        <th>Support</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Paga</td>
-        <td>0.95</td>
-        <td>0.90</td>
-        <td>0.92</td>
-        <td>56538</td>
-      </tr>
-      <tr>
-        <td>No paga</td>
-        <td>0.28</td>
-        <td>0.42</td>
-        <td>0.33</td>
-        <td>4965</td>
-      </tr>
-    </tbody>
-  </table>
+            <table class="pres-table" aria-label="Métricas limpieza + balanceo (intento 1)">
+              <thead>
+                <tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1Score</th><th>Support</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Paga</td><td>0.96</td><td>0.80</td><td>0.84</td><td>61503</td></tr>
+                <tr><td>No paga</td><td>0.21</td><td>0.60</td><td>0.31</td><td>61503</td></tr>
+              </tbody>
+            </table>
 
-  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
-  <p class="pres-note">
-    El dataset tenía outliers (datos extremadamente altos o bajos) y columnas que no eran importantes para el entrenamiento del modelo.
-  </p>
+            <h4 class="pres-h4">Iteraciones</h4>
+            <p class="pres-note">
+              Probamos nuevas estrategias, añadimos features, comparamos modelos (CatBoost/LightGBM) y optimizamos con Optuna.
+            </p>
 
-  <p class="pres-subtitle">Limpiando el Dataset y con un primer intento de balancear el dataset obtuvimos estos resultados:</p>
-  <ul class="auc-list">
-    <li><strong>AUC Score:</strong> 0.77509</li>
-  </ul>
+            <ul class="auc-list"><li><strong>AUC:</strong> 0.7781</li></ul>
 
-  <table class="pres-table" aria-label="Métricas limpieza + balanceo (intento 1)">
-    <thead>
-      <tr>
-        <th>Clase</th>
-        <th>Precision</th>
-        <th>Recall</th>
-        <th>F1Score</th>
-        <th>Support</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Paga</td>
-        <td>0.96</td>
-        <td>0.80</td>
-        <td>0.84</td>
-        <td>61503</td>
-      </tr>
-      <tr>
-        <td>No paga</td>
-        <td>0.21</td>
-        <td>0.60</td>
-        <td>0.31</td>
-        <td>61503</td>
-      </tr>
-    </tbody>
-  </table>
+            <table class="pres-table" aria-label="Métricas con nuevas features + Optuna">
+              <thead>
+                <tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1Score</th><th>Support</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Paga</td><td>0.97</td><td>0.65</td><td>0.78</td><td>46061</td></tr>
+                <tr><td>No paga</td><td>0.17</td><td>0.78</td><td>0.29</td><td>4367</td></tr>
+              </tbody>
+            </table>
 
-  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
-  <p class="pres-note">
-    La técnica de balanceo inicial no fue la adecuada, así que probamos otra estrategia y detectamos qué variables afectaban más al modelo.
-  </p>
+            <h4 class="pres-h4">Resultado final</h4>
+            <p class="pres-note">El mejor rendimiento se obtuvo con CatBoost:</p>
+            <ul class="auc-list"><li><strong>AUC:</strong> 0.81331</li></ul>
 
-  <p class="pres-note">
-    Agregamos columnas para aportar más granularidad, probamos CatBoost y LightGBM, y usamos Optuna para optimizar y comparar modelos.
-  </p>
+            <table class="pres-table" aria-label="Métricas finales CatBoost">
+              <thead>
+                <tr><th>Clase</th><th>Precision</th><th>Recall</th><th>F1Score</th><th>Support</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Paga</td><td>0.97</td><td>0.74</td><td>0.84</td><td>138182</td></tr>
+                <tr><td>No paga</td><td>0.21</td><td>0.73</td><td>0.33</td><td>13101</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-  <ul class="auc-list">
-    <li><strong>AUC Score:</strong> 0.7781</li>
-  </ul>
+          <h3 class="pres-h3">Mejoras futuras</h3>
+          <ul class="pres-note">
+            <li><strong>SQL</strong> para acelerar búsqueda y profesionalizar persistencia.</li>
+            <li><strong>KNN / recomendador</strong> para sugerir acciones (“usuarios similares mejoraron haciendo X”).</li>
+          </ul>
 
-  <table class="pres-table" aria-label="Métricas con nuevas features + Optuna">
-    <thead>
-      <tr>
-        <th>Clase</th>
-        <th>Precision</th>
-        <th>Recall</th>
-        <th>F1Score</th>
-        <th>Support</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Paga</td>
-        <td>0.97</td>
-        <td>0.65</td>
-        <td>0.78</td>
-        <td>46061</td>
-      </tr>
-      <tr>
-        <td>No paga</td>
-        <td>0.17</td>
-        <td>0.78</td>
-        <td>0.29</td>
-        <td>4367</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <h3 class="pres-title" style="font-size:18px;margin-top:6px;">Problemas</h3>
-  <p class="pres-note">
-    La optimización todavía era mejorable; los resultados podían subir.
-  </p>
-
-  <p class="pres-note">
-    Tras múltiples iteraciones con distintos modelos y técnicas de optimización, el mejor resultado se obtuvo con CatBoost.
-  </p>
-
-  <ul class="auc-list">
-    <li><strong>AUC Score:</strong> 0.81331</li>
-  </ul>
-
-  <table class="pres-table" aria-label="Métricas finales CatBoost">
-    <thead>
-      <tr>
-        <th>Clase</th>
-        <th>Precision</th>
-        <th>Recall</th>
-        <th>F1Score</th>
-        <th>Support</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Paga</td>
-        <td>0.97</td>
-        <td>0.74</td>
-        <td>0.84</td>
-        <td>138182</td>
-      </tr>
-      <tr>
-        <td>No paga</td>
-        <td>0.21</td>
-        <td>0.73</td>
-        <td>0.33</td>
-        <td>13101</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-
-  <h3>Mejoras</h3>
-  <ul>
-    <li><strong>Integración con SQL para acelerar la búsqueda de usuarios</strong>
-      <ul>
-        <li>Profesionaliza el proyecto: pasás de trabajar con CSVs a una base de datos real.</li>
-        <li>Permite consultas más rápidas, especialmente si el dataset es grande.</li>
-        <li>Facilita filtrar usuarios por: ID, ingresos, historial crediticio, features del modelo.</li>
-        <li>Te abre la puerta a usar índices, vistas y joins.</li>
-      </ul>
-    </li>
-    <li><strong>Modelo de recomendación KNN para sugerir mejoras al usuario</strong>
-      <ul>
-        <li>“Usuarios similares a ti mejoraron su score aumentando X”</li>
-        <li>“Tu probabilidad de default bajaría si reduces Y”</li>
-        <li>Transforma el modelo en una herramienta de apoyo y no solo de evaluación.</li>
-      </ul>
-    </li>
-  </ul>
-    <div class="presentation-actions">
-      <button class="btn btn-primary" id="btn-back-to-demo" type="button">← Volver a la demo</button>
-</div>
-
-        </section>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- APP (tu contenido actual) -->
   <section id="app">
@@ -783,7 +650,23 @@
               <input id="amtCredit" name="amtCredit" type="number" min="0" step="0.01" placeholder="Ej: 5000" required />
               <div class="field-error hidden" id="err-amt"><strong>Error:</strong> La cantidad debe ser mayor que 0.</div>
             </div>
+
           </div>
+          <div class="row">
+          <label for="annuity">Cuota mensual</label>
+          <div>
+            <input id="annuity" name="annuity" type="number" min="0" step="0.01" placeholder="Ej: 250" required />
+            <div class="field-error hidden" id="err-annuity"><strong>Error:</strong> La cuota debe ser mayor que 0.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="goodsPrice">Precio de bienes </label>
+          <div>
+            <input id="goodsPrice" name="goodsPrice" type="number" min="0" step="0.01" placeholder="Ej: 12000 (opcional)" />
+          </div>
+        </div>
+
 
           <div class="row">
             <label for="creditType">Tipo de crédito</label>
@@ -1108,15 +991,17 @@
       function showPresentation(){
         document.getElementById("app")?.classList.add("hidden");
         document.getElementById("presentation")?.classList.remove("hidden");
-        document.querySelector(".top-fab")?.classList.add("hidden");
         window.scrollTo(0, 0);
+        const btn = document.getElementById("btn-presentation");
+        if (btn) btn.textContent = "← Volver";
       }
 
       function showApp(){
         document.getElementById("presentation")?.classList.add("hidden");
         document.getElementById("app")?.classList.remove("hidden");
-        document.querySelector(".top-fab")?.classList.remove("hidden");
         window.scrollTo(0, 0);
+        const btn = document.getElementById("btn-presentation");
+        if (btn) btn.textContent = "📽️ Presentación";
 
         navigateTo(lastScreen || "choice");
       }
@@ -1129,37 +1014,58 @@
         featureLabels: "/api/feature-labels"
       };
 
-      // ================================
-      // Risk badges
-      // ================================
-      function getRiskStatus(riskPct) {
-        if (!Number.isFinite(riskPct)) {
-          return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
-        }
-        if (riskPct < 30) {
-          return { key: "safe", label: "SEGURO", help: "Perfil con bajo riesgo estimado." };
-        }
-        if (riskPct < 60) {
-          return { key: "review", label: "REVISIÓN MANUAL", help: "Riesgo medio. Se recomienda validación humana." };
-        }
-        return { key: "danger", label: "PELIGRO", help: "Riesgo alto de impago. Probable denegación." };
-      }
+// ================================
+// Risk badges
+// ================================
+function getRiskStatusExisting(riskPct) {
+  if (!Number.isFinite(riskPct)) {
+    return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
+  }
+  if (riskPct < 30) {
+    return { key: "safe", label: "SEGURO", help: "Perfil con bajo riesgo estimado." };
+  }
+  if (riskPct < 60) {
+    return { key: "review", label: "REVISIÓN MANUAL", help: "Riesgo medio. Se recomienda validación humana." };
+  }
+  return { key: "danger", label: "PELIGRO", help: "Riesgo alto de impago. Probable denegación." };
+}
 
-      function renderRiskStatus(riskPct) {
-        const status = getRiskStatus(riskPct);
+function getRiskStatusNewClient(riskPct) {
+  if (!Number.isFinite(riskPct)) {
+    return { key: "review", label: "REVISIÓN MANUAL", help: "No se pudo calcular el riesgo. Revisión humana recomendada." };
+  }
+  // Nuevo cliente: nunca "safe" (pero el badge se queda visible por estética)
+  if (riskPct < 90) {
+    return { key: "review", label: "REVISIÓN MANUAL", help: "Nuevo cliente: política conservadora. Revisión humana requerida." };
+  }
+  return { key: "danger", label: "PELIGRO", help: "Nuevo cliente con riesgo muy alto. Probable denegación." };
+}
 
-        ["safe", "review", "danger"].forEach(k => {
-          const el = document.getElementById(`badge-${k}`);
-          if (!el) return;
-          el.classList.remove("active");
-        });
+function getRiskStatus(riskPct) {
+  const isNewClientFlow =
+    state?.flow === "new_register" || state?.flow === "new_credit";
 
-        const active = document.getElementById(`badge-${status.key}`);
-        if (active) active.classList.add("active");
+  return isNewClientFlow
+    ? getRiskStatusNewClient(riskPct)
+    : getRiskStatusExisting(riskPct);
+}
 
-        const help = document.getElementById("riskStatusHelp");
-        if (help) help.textContent = status.help;
-      }
+function renderRiskStatus(riskPct) {
+  const status = getRiskStatus(riskPct);
+
+  // Siempre visibles los 3; solo activamos 1
+  ["safe", "review", "danger"].forEach(k => {
+    const el = document.getElementById(`badge-${k}`);
+    if (!el) return;
+    el.classList.remove("active");
+  });
+
+  const active = document.getElementById(`badge-${status.key}`);
+  if (active) active.classList.add("active");
+
+  const help = document.getElementById("riskStatusHelp");
+  if (help) help.textContent = status.help;
+}
 
       // =====================================
       // Feature labels (desde FastAPI)
@@ -1265,9 +1171,23 @@
 
       const confirmTitle = document.getElementById("confirm-title");
       const confirmSummary = document.getElementById("confirm-summary");
-      // Botones presentación
-      document.getElementById("btn-presentation")?.addEventListener("click", showPresentation);
+      // Botones presentación (toggle real)
+        document.getElementById("btn-presentation")?.addEventListener("click", () => {
+          const pres = document.getElementById("presentation");
+          const isHidden = pres?.classList.contains("hidden");
+
+          if (isHidden) {
+            // guarda pantalla actual ANTES de ir a presentación
+            // (por si en el futuro abres pres desde result/confirm/etc)
+            // lastScreen ya se actualiza en navigateTo, esto lo refuerza
+            showPresentation();
+          } else {
+            showApp();
+          }
+        });
+
       document.getElementById("btn-back-to-demo")?.addEventListener("click", showApp);
+
 
       // UI: mostrar SK asignado tras registrar nuevo cliente
     const rowSkAssigned = document.getElementById("row-sk-assigned");
@@ -1286,6 +1206,7 @@
       const errSk = document.getElementById("err-sk");
       const errAmt = document.getElementById("err-amt");
       const errType = document.getElementById("err-type");
+      const errAnnuity = document.getElementById("err-annuity");
 
       const errName = document.getElementById("err-name");
       const errDni = document.getElementById("err-dni");
@@ -1348,11 +1269,20 @@
         });
       }
 
+      function escapeHtml(s){
+        return String(s ?? "")
+          .replaceAll("&","&amp;")
+          .replaceAll("<","&lt;")
+          .replaceAll(">","&gt;")
+          .replaceAll('"',"&quot;")
+          .replaceAll("'","&#039;");
+      }
+
       function buildSummaryRows(rows) {
         return rows.map(r => `
           <div class="summary-row">
-            <div class="summary-k">${r.k}</div>
-            <div class="summary-v">${r.v}</div>
+            <div class="summary-k">${escapeHtml(r.k)}</div>
+            <div class="summary-v">${escapeHtml(r.v)}</div>
           </div>
         `).join("");
       }
@@ -1370,13 +1300,12 @@
           errSk.classList.add("hidden");
           errAmt.classList.add("hidden");
           errType.classList.add("hidden");
+          errAnnuity.classList.add("hidden");
 
-          // 1) Calcula SK primero (única fuente de verdad)
           const sk = requireSk
             ? Number(document.getElementById("skIdCurr").value)
             : Number(state.virtualSk);
 
-          // 2) Si estamos en new_credit, el SK virtual DEBE existir
           if (!requireSk) {
             if (!Number.isFinite(sk) || sk <= 0) {
               setStatus(statusExisting, "err", "No hay SK virtual válido. Vuelve a registrar el cliente.");
@@ -1385,6 +1314,10 @@
           }
 
           const amt = Number(document.getElementById("amtCredit").value);
+          const annuity = Number(document.getElementById("annuity").value);
+
+          const goodsRaw = document.getElementById("goodsPrice").value;
+          const goods = goodsRaw === "" ? null : Number(goodsRaw);
 
           const creditTypeEl = document.getElementById("creditType");
           const type = creditTypeEl.value;
@@ -1392,16 +1325,17 @@
 
           let ok = true;
 
-          // Si es existing real, validamos el SK del input
           if (requireSk) {
-            if (!Number.isFinite(sk) || sk <= 0) {
-              errSk.classList.remove("hidden");
-              ok = false;
-            }
+            if (!Number.isFinite(sk) || sk <= 0) { errSk.classList.remove("hidden"); ok = false; }
           }
 
-          if (!Number.isFinite(amt) || amt <= 0) {
-            errAmt.classList.remove("hidden");
+          if (!Number.isFinite(amt) || amt <= 0) { errAmt.classList.remove("hidden"); ok = false; }
+
+          if (!Number.isFinite(annuity) || annuity <= 0) { errAnnuity.classList.remove("hidden"); ok = false; }
+
+          if (goods !== null && (!Number.isFinite(goods) || goods <= 0)) {
+            // goods es opcional; si lo pone, que sea válido
+            setStatus(statusExisting, "warn", "El precio de bienes es opcional, pero si lo rellenas debe ser > 0.");
             ok = false;
           }
 
@@ -1413,7 +1347,13 @@
 
           return {
             ok,
-            payload: { sk_id_curr: sk, amt_credit: amt, credit_type: type }
+            payload: {
+              sk_id_curr: sk,
+              amt_credit: amt,
+              credit_type: type,
+              annuity,
+              goods_price: goods, // null si no se envía
+            }
           };
         }
 
@@ -1451,6 +1391,8 @@
         };
 
         return {
+          NAME_CONTRACT_TYPE: str("nc_contract_type"),
+
           AMT_ANNUITY: num("nc_annuity"),
           AMT_GOODS_PRICE: num("nc_goods_price"),
 
@@ -1622,14 +1564,20 @@
         });
       }
 
-      function buildKidSummary(pDefault){
-        const pct = pDefault * 100;
-        if (!Number.isFinite(pct)) return "No se pudo calcular el riesgo.";
-        if (pct < 30) return `Riesgo bajo (${pct.toFixed(2)}%).`;
-        if (pct < 60) return `Riesgo medio (${pct.toFixed(2)}%).`;
-        return `Riesgo alto (${pct.toFixed(2)}%).`;
-      }
+        function buildKidSummary(pDefault){
+          const pct = pDefault * 100;
+          if (!Number.isFinite(pct)) return "No se pudo calcular el riesgo.";
 
+          const isNewClientFlow = state?.flow === "new_register" || state?.flow === "new_credit";
+          if (isNewClientFlow) {
+            if (pct < 90) return `Nuevo cliente: revisión humana requerida (${pct.toFixed(2)}%).`;
+            return `Nuevo cliente: riesgo muy alto (${pct.toFixed(2)}%).`;
+          }
+
+          if (pct < 30) return `Riesgo bajo (${pct.toFixed(2)}%).`;
+          if (pct < 60) return `Riesgo medio (${pct.toFixed(2)}%).`;
+          return `Riesgo alto (${pct.toFixed(2)}%).`;
+        }
 
       function renderResultUI(res){
         document.getElementById("ui-json").textContent = JSON.stringify(res, null, 2);
@@ -1741,13 +1689,20 @@
         }
 
         // Guardar crédito
-        state.credit = { amt_credit: v.payload.amt_credit, credit_type: v.payload.credit_type };
+        state.credit = {
+        amt_credit: v.payload.amt_credit,
+        credit_type: v.payload.credit_type,
+        annuity: v.payload.annuity,
+        goods_price: v.payload.goods_price
+      };
 
         if (state.flow === "existing") {
           confirmTitle.textContent = "Confirmar scoring (cliente existente)";
           confirmSummary.innerHTML = buildSummaryRows([
             { k:"SK_ID_CURR", v:String(v.payload.sk_id_curr) },
             { k:"Cantidad", v:`${state.credit.amt_credit.toFixed(2)} €` },
+            { k:"Cuota mensual", v:`${state.credit.annuity.toFixed(2)} €` },
+            { k:"Precio de bienes", v: state.credit.goods_price == null ? "—" : `${state.credit.goods_price.toFixed(2)} €` },
             { k:"Tipo", v:creditTypeLabel(state.credit.credit_type) }
           ]);
 
@@ -1755,7 +1710,9 @@
           state._finalPayload = {
             sk_id_curr: v.payload.sk_id_curr,
             amt_credit: state.credit.amt_credit,
-            credit_type: state.credit.credit_type
+            credit_type: state.credit.credit_type,
+            annuity: state.credit.annuity,
+            goods_price: state.credit.goods_price
           };
         } else {
           // payload final para /api/new-client/score
@@ -1770,6 +1727,8 @@
             sk_id_curr: v.payload.sk_id_curr,
             amt_credit: state.credit.amt_credit,
             credit_type: state.credit.credit_type,
+            annuity: state.credit.annuity,
+            goods_price: state.credit.goods_price,
             features: state.newFeatures || {}
           };
         }
