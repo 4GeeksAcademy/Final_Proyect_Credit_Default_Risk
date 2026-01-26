@@ -9,18 +9,11 @@ Pipeline unificado para:
 - Formateo para frontend (format_shap_for_frontend)
 
 ✅ Arreglos clave:
-- Ya NO usa rutas relativas frágiles ('../...') por defecto.
+- Carga dataset desde Hugging Face
 - Expone get_model() y get_db() (cacheados).
-- Permite que TU api.py sobreescriba DATA_PATH y MODEL_PATH:
-    iago_fn.DATA_PATH = <Path a tu csv>
-    iago_fn.MODEL_PATH = <Path a tu pkl>
-    (y si quieres reset: iago_fn.get_model.cache_clear(); iago_fn.get_db.cache_clear())
+- Permite que TU api.py sobreescriba DATA_URL y MODEL_PATH
 - Limpieza robusta: inf/nan, strings numéricos, categories, 'missing'
 - Compatible con CatBoost y XGBoost en predict() y explain()
-
-⚠️ Nota realista:
-- SHAP con CatBoost vía shap.TreeExplainer puede fallar según versión.
-  Si falla, devolvemos data vacía (y tu API lo captura).
 """
 
 from __future__ import annotations
@@ -32,6 +25,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import joblib
+from datasets import load_dataset
 
 # CatBoost/SHAP son opcionales en runtime si solo quieres predict sin explain
 try:
@@ -50,8 +44,8 @@ except Exception:
 # =============================================================================
 BASE_DIR = Path(__file__).resolve().parent
 
-# Por defecto: mismos paths que tu compañero solía usar, pero en Path absoluto
-DATA_PATH: Path = (BASE_DIR / ".." / "data" / "processed" / "home_credit_train_ready.csv").resolve()
+# URL de Hugging Face para el dataset
+DATA_URL = "https://huggingface.co/datasets/jamirc/home_credit_default_risk/resolve/main/home_credit_train_ready.csv"
 MODEL_PATH: Path = (BASE_DIR / ".." / "models" / "catboost_best_scores.pkl").resolve()
 
 ID_COL = "SK_ID_CURR"
@@ -179,9 +173,12 @@ def _ensure_single_row(df: pd.DataFrame) -> pd.DataFrame:
 # =============================================================================
 @lru_cache(maxsize=1)
 def get_db() -> pd.DataFrame:
-    if not Path(DATA_PATH).exists():
-        raise FileNotFoundError(f"Dataset no encontrado: {DATA_PATH}")
-    return pd.read_csv(str(DATA_PATH))
+    """Carga el dataset desde Hugging Face"""
+    return load_dataset(
+        "csv",
+        data_files=DATA_URL,
+        split="train"
+    ).to_pandas()
 
 
 @lru_cache(maxsize=1)
@@ -325,7 +322,6 @@ def explain(user_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             cat_cols = X2.select_dtypes("category").columns.tolist()
             for col in cat_cols:
                 X2[col] = X2[col].cat.codes
-
             try:
                 model.set_params(device="cpu", eval_metric=None)
             except Exception:
@@ -338,15 +334,13 @@ def explain(user_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             shap_values = explainer.shap_values(X2)
 
         elif "CatBoost" in model_type:
-            # CatBoost: ideal usar Pool si está disponible
-            if Pool is not None:
-                cat_features = X.select_dtypes("category").columns.tolist()
-                pool = Pool(X, cat_features=cat_features)
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(pool)
-            else:
-                explainer = shap.TreeExplainer(model)
-                shap_values = explainer.shap_values(X)
+            X2 = X.copy()
+            cat_cols = X2.select_dtypes("category").columns.tolist()
+            for col in cat_cols:
+                X2[col] = X2[col].cat.codes.replace(-1, 0)  # -1 = unknown
+            
+            explainer = shap.TreeExplainer(model)
+            shap_values = explainer.shap_values(X2)
 
         else:
             explainer = shap.TreeExplainer(model)
@@ -433,5 +427,4 @@ def format_shap_for_frontend(
         "enabled": bool(enabled),
         "top_risk_increasing": inc,
         "top_risk_decreasing": dec,
-
     }

@@ -30,13 +30,13 @@ import numpy as np
 import pandas as pd
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from feature_labels import COLUMN_MAPPING_UI
 from fastapi.staticfiles import StaticFiles
-
+from datasets import load_dataset
 
 # =============================================================================
 # Helpers
@@ -222,7 +222,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 REPO_ROOT = _find_repo_root(BASE_DIR)
-IAGO_DIR = REPO_ROOT / "Trabajo_Iago"
+#IAGO_DIR = REPO_ROOT / "trabajo_Iago"
 
 # Dataset en TU backend (según tu estructura)
 DATA_DIR = BASE_DIR / "assets" / "data"
@@ -249,7 +249,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from frontend.templates import functions as iago_fn  # type: ignore
+    import functions as iago_fn  # type: ignore
 except Exception as e:
     raise RuntimeError(
         f"No se pudo importar Trabajo_Iago.functions. REPO_ROOT={REPO_ROOT}. Error: {e}"
@@ -257,7 +257,7 @@ except Exception as e:
 
 # Forzar que SU pipeline use TUS paths (si su archivo los respeta)
 try:
-    iago_fn.DATA_PATH = DATA_FILE
+    iago_fn.DATA_PATH = DATA_URL
 except Exception:
     pass
 
@@ -283,7 +283,7 @@ except Exception:
 # =============================================================================
 # In-memory register (DEMO)
 # =============================================================================
-# Registro “suficiente” para demo: persistencia temporal en RAM.
+# Registro "suficiente" para demo: persistencia temporal en RAM.
 # - sk_id_curr virtual: 900000000, 900000001, ...
 # - dedupe básico por email/dni (para no generar mil SK por error)
 REGISTERED_CLIENTS: Dict[int, Dict[str, Any]] = {}
@@ -419,22 +419,28 @@ class NewClientScoreRequest(BaseModel):
 # =============================================================================
 # Routes
 # =============================================================================
-@app.get("/", tags=["health"])
+@app.get("/", tags=["frontend"])
+def root():
+    """Redirige automáticamente al frontend"""
+    return RedirectResponse(url="/app")
+
+
+@app.get("/health", tags=["health"])
 def health() -> Dict[str, Any]:
     return {
         "status": "ok",
         "exists": {
             "repo_root": REPO_ROOT.exists(),
-            "iago_dir": IAGO_DIR.exists(),
-            "dataset": DATA_FILE.exists(),
-            "model": MODEL_PKL.exists(),
+            #"iago_dir": IAGO_DIR.exists(),
+            #"dataset": DATA_FILE.exists(),
+            #"model": MODEL_PKL.exists(),
             "templates_dir": TEMPLATES_DIR.exists(),
         },
         "paths": {
             "repo_root": str(REPO_ROOT),
-            "iago_dir": str(IAGO_DIR),
-            "dataset": str(DATA_FILE),
-            "model": str(MODEL_PKL),
+            #"iago_dir": str(IAGO_DIR),
+            #"dataset": str(DATA_FILE),
+            #"model": str(MODEL_PKL),
             "templates_dir": str(TEMPLATES_DIR),
         },
         "functions_has": {
@@ -490,8 +496,7 @@ def new_client_schema() -> Dict[str, Any]:
     - label: nombre legible (mapping si existe)
     - allowed: categorías (solo si <= 50; si no, None)
     """
-    if not DATA_FILE.exists():
-        raise HTTPException(status_code=500, detail=f"Dataset no encontrado: {DATA_FILE}")
+    
 
     try:
         db = iago_fn.get_db() if hasattr(iago_fn, "get_db") else pd.read_csv(str(DATA_FILE))
@@ -531,10 +536,7 @@ def new_client_schema() -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 @app.post("/api/score", tags=["scoring"])
 def score(req: ScoreRequest) -> Dict[str, Any]:
-    if not DATA_FILE.exists():
-        raise HTTPException(status_code=500, detail=f"Dataset no encontrado: {DATA_FILE}")
-    if not MODEL_PKL.exists():
-        raise HTTPException(status_code=500, detail=f"Modelo no encontrado: {MODEL_PKL}")
+   
 
     # 1) Modelo
     try:
@@ -638,11 +640,7 @@ def score(req: ScoreRequest) -> Dict[str, Any]:
 # -----------------------------------------------------------------------------
 @app.post("/api/new-client/score", tags=["scoring"])
 def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
-    if not DATA_FILE.exists():
-        raise HTTPException(status_code=500, detail=f"Dataset no encontrado: {DATA_FILE}")
-    if not MODEL_PKL.exists():
-        raise HTTPException(status_code=500, detail=f"Modelo no encontrado: {MODEL_PKL}")
-
+   
     # 1) Modelo
     try:
         model = iago_fn.get_model() if hasattr(iago_fn, "get_model") else _load_model_fallback(MODEL_PKL)
@@ -674,7 +672,7 @@ def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
         feats["AMT_GOODS_PRICE"] = float(req.goods_price)
 
 
-    # 3.3) Si quieres “rellenar” automáticamente lo que falte (útil si el form dinámico no manda todo),
+    # 3.3) Si quieres "rellenar" automáticamente lo que falte (útil si el form dinámico no manda todo),
     #     usamos el schema del dataset para defaults num/cat.
     try:
         db = iago_fn.get_db() if hasattr(iago_fn, "get_db") else pd.read_csv(str(DATA_FILE))
@@ -752,17 +750,17 @@ def new_client_score(req: NewClientScoreRequest) -> Dict[str, Any]:
         "sk_id_curr": req.sk_id_curr,
         "input": {
             "sk_id_curr": req.sk_id_curr,
-            "amt_credit": req.amt_credit,
-            "credit_type": req.credit_type,
-            "name_contract_type": contract,
-            "annuity": req.annuity,
-            "goods_price": req.goods_price,
-            "features_sent": list((req.features or {}).keys()),
-            "features_from_register": list(stored_features.keys()) if stored_features else [],
-        },
-        "proba": {"no_default": 1.0 - p_default, "default": p_default},
-        "decision": decision,
-        "threshold": threshold,
-        "payoff": payoff,
-        "shap": shap_block,
-    }
+"amt_credit": req.amt_credit,
+"credit_type": req.credit_type,
+"name_contract_type": contract,
+"annuity": req.annuity,
+"goods_price": req.goods_price,
+"features_sent": list((req.features or {}).keys()),
+"features_from_register": list(stored_features.keys()) if stored_features else [],
+},
+"proba": {"no_default": 1.0 - p_default, "default": p_default},
+"decision": decision,
+"threshold": threshold,
+"payoff": payoff,
+"shap": shap_block,
+}
