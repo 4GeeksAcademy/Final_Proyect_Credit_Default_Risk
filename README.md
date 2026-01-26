@@ -1,112 +1,137 @@
-# Data Science Project Boilerplate
+# Proyecto de Machine Learning - Riesgo Crediticio
 
-This boilerplate is designed to kickstart data science projects by providing a basic setup for database connections, data processing, and machine learning model development. It includes a structured folder organization for your datasets and a set of pre-defined Python packages necessary for most data science tasks.
-
-## Structure
-
-The project is organized as follows:
-
-- **`src/app.py`** → Main Python script where your project will run.
-- **`src/explore.ipynb`** → Notebook for exploration and testing. Once exploration is complete, migrate the clean code to `app.py`.
-- **`src/utils.py`** → Auxiliary functions, such as database connection.
-- **`requirements.txt`** → List of required Python packages.
-- **`models/`** → Will contain your SQLAlchemy model classes.
-- **`data/`** → Stores datasets at different stages:
-  - **`data/raw/`** → Raw data.
-  - **`data/interim/`** → Temporarily transformed data.
-  - **`data/processed/`** → Data ready for analysis.
+Este repositorio contiene un experimento completo de machine learning que incluye descarga de datos, análisis exploratorio, preparación de datasets y entrenamiento de modelo CatBoost optimizado.
 
 
-## ⚡ Initial Setup in Codespaces (Recommended)
-
-No manual setup is required, as **Codespaces is automatically configured** with the predefined files created by the academy for you. Just follow these steps:
-
-1. **Wait for the environment to configure automatically**.
-   - All necessary packages and the database will install themselves.
-   - The automatically created `username` and `db_name` are in the **`.env`** file at the root of the project.
-2. **Once Codespaces is ready, you can start working immediately**.
-
-
-## 💻 Local Setup (Only if you can't use Codespaces)
-
-**Prerequisites**
-
-Make sure you have Python 3.11+ installed on your machine. You will also need pip to install the Python packages.
-
-**Installation**
-
-Clone the project repository to your local machine.
-
-Navigate to the project directory and install the required Python packages:
-
+1. Instala las dependencias necesarias:
 ```bash
 pip install -r requirements.txt
 ```
 
-**Create a database (if necessary)**
+##  Ejecución del Experimento
 
-Create a new database within the Postgres engine by customizing and executing the following command:
+El experimento debe ejecutarse en el orden indicado, ya que cada paso depende del anterior.
 
-```bash
-$ psql -U postgres -c "DO \$\$ BEGIN 
-    CREATE USER my_user WITH PASSWORD 'my_password'; 
-    CREATE DATABASE my_database OWNER my_user; 
-END \$\$;"
-```
-Connect to the Postgres engine to use your database, manipulate tables, and data:
+### Paso 1: Descarga de Datasets
+
+Este script descarga los datasets originales desde Hugging Face.
 
 ```bash
-$ psql -U my_user -d my_database
+python src/1_download_dataset.py
 ```
 
-Once inside PSQL, you can create tables, run queries, insert, update, or delete data, and much more!
+**¿Qué hace este paso?**
+- Se conecta a Hugging Face Hub
+- Descarga los datasets originales
+- Guarda los datos en la carpeta `data/raw/`
 
-**Environment Variables**
+**Salida esperada:** Archivos de datos originales en `data/raw/`
 
-Create a .env file in the root directory of the project to store your environment variables, such as your database connection string:
+---
 
-```makefile
-DATABASE_URL="postgresql://<USER>:<PASSWORD>@<HOST>:<PORT>/<DB_NAME>"
+### Paso 2: Análisis Exploratorio y Limpieza (EDA)
 
-#example
-DATABASE_URL="postgresql://my_user:my_password@localhost:5432/my_database"
-```
-
-## Running the Application
-
-To run the application, execute the app.py script from the root directory of the project:
+Realiza el análisis exploratorio de datos, limpieza y depuración.
 
 ```bash
-python src/app.py
+python src/2_EDA.py
 ```
 
-## Adding Models
+**¿Qué hace este paso?**
+- Analiza la estructura y calidad de los datos
+- Identifica y trata valores nulos, duplicados y outliers
+- Realiza transformaciones y limpieza de datos
+- Genera visualizaciones y estadísticas descriptivas
+- Guarda los datos limpios en `data/processed/`
 
-To add SQLAlchemy model classes, create new Python script files within the models/ directory. These classes should be defined according to your database schema.
+**Salida esperada:** 
+- Datasets limpios en `data/processed/`
+- Reportes de análisis y gráficas (opcional)
 
-Example model definition (`models/example_model.py`):
+---
 
-```py
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+### Paso 3: Creación del Dataset Completo
 
-Base = declarative_base()
+Combina el dataset limpio con otros datasets del repositorio.
 
-class ExampleModel(Base):
-    __tablename__ = 'example_table'
-    id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(unique=True)
+```bash
+python src/3_create_full_dataset.py
 ```
 
-## Working with Data
+**¿Qué hace este paso?**
+- Lee los datos limpios del paso anterior
+- Integra múltiples datasets del repositorio
+- Realiza merge o concatenación según la lógica del negocio
+- Crea el dataset final unificado
+- Guarda el resultado en `data/processed/`
 
-You can place your raw datasets in the data/raw directory, intermediate datasets in data/interim, and processed datasets ready for analysis in data/processed.
+**Salida esperada:** Dataset completo y unificado en `data/processed/`
 
-To process data, you can modify the app.py script to include your data processing steps, using pandas for data manipulation and analysis.
+---
 
-## Contributors
+### Paso 4: Entrenamiento del Modelo CatBoost Optimizado
 
-This template was built as part of the [Data Science and Machine Learning Bootcamp](https://4geeksacademy.com/us/coding-bootcamps/datascience-machine-learning) by 4Geeks Academy by [Alejandro Sanchez](https://twitter.com/alesanchezr) and many other contributors. Learn more about [4Geeks Academy BootCamp programs](https://4geeksacademy.com/us/programs) here.
+Crea y entrena el modelo CatBoost con los mejores hiperparámetros.
 
-Other templates and resources like this can be found on the school's GitHub page.
+```bash
+python src/4_catboost_best_scores.py
+```
+
+**¿Qué hace este paso?**
+- Carga el dataset final
+- Realiza división train/test
+- Entrena modelo CatBoost con hiperparámetros optimizados
+- Evalúa el rendimiento del modelo
+- Guarda el modelo entrenado en `models/`
+
+**Salida esperada:** 
+- Modelo entrenado en `models/`
+- Métricas de evaluación
+- Reportes de performance
+
+---
+
+## Ejecución Completa
+
+Si deseas ejecutar todo el pipeline de una vez, puedes usar:
+
+```bash
+python src/1_download_dataset.py && \
+python src/2_EDA.py && \
+python src/3_create_full_dataset.py && \
+python src/4_catboost_best_scores.py
+```
+
+
+## ⚠️ Notas Importantes
+
+- Cada paso debe ejecutarse en orden secuencial
+- Asegúrate de que cada paso se complete exitosamente antes de continuar con el siguiente
+- Los scripts pueden tardar varios minutos dependiendo del tamaño de los datos
+- Verifica que tienes suficiente espacio en disco para los datasets
+
+## 🐛 Solución de Problemas
+
+**Error de conexión a Hugging Face:**
+- Verifica tu conexión a internet
+- Asegúrate de tener instalado `huggingface-hub`
+
+**Error de memoria:**
+- Considera procesar los datos en lotes más pequeños
+- Aumenta la memoria disponible o usa una máquina más potente
+
+**Dependencias faltantes:**
+- Ejecuta `pip install -r requirements.txt` nuevamente
+- Verifica la versión de Python
+
+
+
+## 👥 Contribuciones
+
+Iago Rivadulla, Agustin Marquez y Gabriel De Almeida
+
+## 📧 Contacto
+
+- Iago Rivadulla: ([github](https://github.com/GabrielDeAlmeidaSantos))
+- Agustin Marquez: ([github](https://github.com/agumarquez10))
+- Gabriel De Almeida: ([github](https://github.com/iagorivadulla))

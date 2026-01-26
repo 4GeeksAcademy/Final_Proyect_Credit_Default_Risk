@@ -247,7 +247,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    from Trabajo_Iago import functions as iago_fn  # type: ignore
+    from frontend.templates import functions as iago_fn  # type: ignore
 except Exception as e:
     raise RuntimeError(
         f"No se pudo importar Trabajo_Iago.functions. REPO_ROOT={REPO_ROOT}. Error: {e}"
